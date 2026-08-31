@@ -1,0 +1,91 @@
+.records-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--white);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(13, 35, 58, 0.06);
+}
+
+.records-table th {
+  text-align: left;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-light);
+  background: #F8FAFC;
+  padding: 12px 16px;
+  border-bottom: 1px solid #E7EBF0;
+}
+
+.records-table td {
+  padding: 12px 16px;
+  font-size: 13.5px;
+  color: var(--text);
+  border-bottom: 1px solid #F0F2F5;
+  vertical-align: top;
+}
+
+.records-input {
+  font-family: var(--font-main);
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.records-emergency-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.records-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.records-edit-btn {
+  background: none;
+  border: 1px solid #E2E8F0;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.records-edit-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.records-error {
+  background: #FDEAEA;
+  border: 1px solid #C0392B;
+  color: #C0392B;
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.btn-approve,
+.btn-reject {
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.btn-approve {
+  background: #1E8449;
+}
+
+.btn-reject {
+  background: #C0392B;
+}

@@ -1,0 +1,158 @@
+.apply-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--background);
+  padding: 48px 24px;
+}
+
+.apply-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--white);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(13, 35, 58, 0.1);
+  padding: 40px 36px;
+}
+
+.apply-eyebrow {
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.apply-card h1 {
+  color: var(--secondary);
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.apply-intro {
+  color: var(--text-light);
+  font-size: 14px;
+  margin-bottom: 26px;
+  line-height: 1.5;
+}
+
+.apply-note {
+  color: var(--text-light);
+  font-size: 13px;
+  margin-bottom: 22px;
+}
+
+.apply-error {
+  background: #FDEAEA;
+  border: 1px solid #C0392B;
+  color: #C0392B;
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+}
+
+.apply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.apply-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--secondary);
+}
+
+.apply-doc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 6px;
+  border-top: 1px solid #EEF1F4;
+}
+
+.apply-doc-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.required-star {
+  color: #C0392B;
+}
+
+.apply-doc-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.apply-form input,
+.apply-form select {
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 10px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  color: var(--text);
+}
+
+.apply-form input:focus,
+.apply-form select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.field-note {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-light);
+}
+
+.field-error {
+  color: #C0392B;
+}
+
+.field-ok {
+  color: #1E8449;
+}
+
+.apply-submit {
+  margin-top: 6px;
+  background: var(--primary);
+  color: var(--white);
+  border: 0;
+  padding: 13px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  transition: 0.2s ease;
+}
+
+.apply-submit:hover {
+  background: var(--secondary);
+}
+
+.back-link {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.back-link:hover {
+  color: var(--primary);
+}

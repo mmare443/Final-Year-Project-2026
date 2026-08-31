@@ -1,0 +1,11 @@
+bin/
+obj/
+*.user
+appsettings.Development.json
+appsettings.Production.json
+.vs/
+
+# Uploaded documents are local dev artifacts / real (eventually real
+# applicant) data — never commit these, only the folder structure.
+wwwroot/uploads/admissions/*
+!wwwroot/uploads/admissions/.gitkeep

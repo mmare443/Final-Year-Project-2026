@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description"
+          content="Sign in to Lutheran Church College services.">
+
+    <title>Sign In | Lutheran Church College</title>
+
+    <link rel="icon"
+          type="image/png"
+          href="../images/logo/lcc-logo.png">
+
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/login-page.css">
+</head>
+
+<body class="login-page">
+
+    <header class="login-header">
+        <div class="login-header-inner">
+
+            <a href="../index.html"
+               class="login-brand"
+               aria-label="Lutheran Church College Home">
+
+                <img class="login-brand-logo"
+                     src="../images/logo/lcc-logo.png"
+                     alt="Lutheran Church College Logo">
+
+                <div class="login-brand-text">
+                    <strong>Lutheran Church College</strong>
+                    <span>Banz • Papua New Guinea</span>
+                </div>
+
+            </a>
+
+        </div>
+    </header>
+
+    <main class="login-main">
+
+        <section class="login-card">
+
+            <div class="login-logo">
+                <img src="../images/logo/lcc-logo.png"
+                     alt="Lutheran Church College">
+            </div>
+
+            <span class="section-eyebrow">LCC-CMS</span>
+
+            <h1>Welcome Back</h1>
+
+            <p class="login-introduction">
+                Sign in with your LCC account to access
+                the appropriate College portal.
+            </p>
+
+            <div class="login-action">
+
+                <a href="http://localhost:5173/login"
+                   class="entra-signin-btn"
+                   id="entraSignIn">
+
+                    <i class="fa-brands fa-microsoft"
+                       aria-hidden="true"></i>
+
+                    <span>Sign in with Microsoft</span>
+                </a>
+
+            </div>
+
+            <div class="login-information">
+
+                <i class="fa-solid fa-shield-halved"
+                   aria-hidden="true"></i>
+
+                <p>
+                    Your account will be authenticated securely
+                    through Microsoft Entra ID. Your assigned
+                    role determines which College portal you
+                    can access.
+                </p>
+
+            </div>
+
+            <a href="../index.html" class="back-home">
+                <i class="fa-solid fa-arrow-left"
+                   aria-hidden="true"></i>
+                Return to LCC website
+            </a>
+
+        </section>
+
+    </main>
+
+    <footer class="login-footer">
+        <p>
+            &copy; 2026 Lutheran Church College.
+            All rights reserved.
+        </p>
+    </footer>
+
+    <script>
+        // Sign-in is now a direct link into the React SPA's /login route,
+        // which owns the MSAL.js Entra ID redirect (Blueprint Rev 5, §4).
+        // No client-side auth logic belongs on this static page.
+    </script>
+
+</body>
+</html>

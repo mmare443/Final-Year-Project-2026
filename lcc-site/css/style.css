@@ -1,0 +1,244 @@
+:root {
+    --font-main: 'Poppins', Arial, Helvetica, sans-serif;
+    --primary: #0A38FF;
+    --secondary: #0D233A;
+    --accent: #D4AF37;
+    --background: #F4F6F9;
+    --white: #FFFFFF;
+    --border: #E2E8F0;
+    --text: #1E293B;
+    --text-light: #64748B;
+    --container: 1200px;
+    --radius: 12px;
+    --shadow: 0 12px 35px rgba(15, 45, 92, 0.08);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-main);
+    color: var(--text);
+    background: var(--background);
+    line-height: 1.6;
+}
+
+img {
+    display: block;
+    max-width: 100%;
+}
+
+a {
+    color: inherit;
+}
+
+.container {
+    width: min(var(--container), calc(100% - 40px));
+    margin-inline: auto;
+}
+
+.section {
+    padding: 80px 0;
+}
+
+.section-heading {
+    max-width: 760px;
+    margin: 0 auto 40px;
+    text-align: center;
+}
+
+.section-eyebrow {
+    display: inline-block;
+    margin-bottom: 8px;
+    color: var(--primary);
+    font-size: .8rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.section-heading h2 {
+    margin: 0 0 12px;
+    color: var(--secondary);
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    line-height: 1.2;
+}
+
+.section-heading p {
+    margin: 0;
+    color: var(--text-light);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 22px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    font-weight: 800;
+    transition: .25s ease;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: var(--white);
+}
+
+.btn-primary:hover {
+    background: var(--secondary);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: var(--secondary);
+    color: var(--white);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--white);
+    border-color: rgba(255,255,255,.8);
+}
+
+.text-link {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    color: var(--primary);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.info-card {
+    padding: 28px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.info-card i {
+    margin-bottom: 18px;
+    color: var(--primary);
+    font-size: 1.5rem;
+}
+
+.info-card h3 {
+    margin: 0 0 10px;
+    color: var(--secondary);
+}
+
+.info-card p {
+    color: var(--text-light);
+}
+
+.info-card a {
+    color: var(--primary);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.section-cta {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+}
+
+.apply-pulse {
+    animation: applyPulse 1.8s infinite;
+}
+
+@keyframes applyPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(10,56,255,.35); }
+    50% { box-shadow: 0 0 0 9px rgba(10,56,255,0); }
+}
+
+.site-footer {
+    background: var(--secondary);
+    color: var(--white);
+}
+
+.footer-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 40px;
+    padding: 55px 0;
+}
+
+.footer-brand img {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+}
+
+.footer-brand h3 {
+    margin: 14px 0 5px;
+}
+
+.footer-brand p,
+.footer-contact p {
+    color: rgba(255,255,255,.75);
+}
+
+.footer-links,
+.footer-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.footer-links a {
+    color: rgba(255,255,255,.8);
+    text-decoration: none;
+}
+
+.footer-bottom {
+    border-top: 1px solid rgba(255,255,255,.15);
+    padding: 18px 0;
+    text-align: center;
+}
+
+.footer-bottom p {
+    margin: 0;
+    color: rgba(255,255,255,.65);
+    font-size: .8rem;
+}
+
+@media (max-width: 900px) {
+    .card-grid,
+    .footer-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .container {
+        width: min(var(--container), calc(100% - 30px));
+    }
+
+    .section {
+        padding: 60px 0;
+    }
+
+    .card-grid,
+    .footer-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,0 +1,142 @@
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+}
+
+.header-inner {
+    min-height: 78px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.site-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--secondary);
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.site-logo img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+}
+
+.site-logo span {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.main-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.main-nav a {
+    padding: 10px 12px;
+    border-radius: 7px;
+    color: var(--secondary);
+    text-decoration: none;
+    font-size: .9rem;
+    font-weight: 700;
+}
+
+.main-nav a:hover,
+.main-nav a:focus-visible {
+    background: var(--background);
+    color: var(--primary);
+}
+
+.main-nav .nav-apply {
+    margin-left: 6px;
+    background: var(--primary);
+    color: var(--white);
+}
+
+.main-nav .nav-apply:hover {
+    background: var(--secondary);
+    color: var(--white);
+}
+
+.main-nav .nav-signin {
+    border: 1px solid var(--primary);
+    color: var(--primary);
+}
+
+.main-nav .nav-signin:hover {
+    background: var(--primary);
+    color: var(--white);
+}
+
+.menu-toggle {
+    display: none;
+    width: 44px;
+    height: 44px;
+    padding: 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.menu-toggle span {
+    display: block;
+    width: 25px;
+    height: 2px;
+    margin: 5px auto;
+    background: var(--secondary);
+    transition: .25s ease;
+}
+
+@media (max-width: 900px) {
+    .menu-toggle {
+        display: block;
+    }
+
+    .main-nav {
+        position: absolute;
+        left: 20px;
+        right: 20px;
+        top: calc(100% + 1px);
+        display: none;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 12px;
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: 0 0 12px 12px;
+        box-shadow: var(--shadow);
+    }
+
+    .main-nav.is-open {
+        display: flex;
+    }
+
+    .main-nav a {
+        width: 100%;
+    }
+
+    .main-nav .nav-apply,
+    .main-nav .nav-signin {
+        margin-left: 0;
+        text-align: center;
+    }
+}
+
+@media (min-width: 901px) {
+    .main-nav {
+        display: flex !important;
+    }
+
+    .menu-toggle {
+        display: none !important;
+    }
+}
