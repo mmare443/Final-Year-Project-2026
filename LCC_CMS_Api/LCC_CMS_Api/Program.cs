@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 
@@ -5,18 +7,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------
 // Authentication — bearer token (JWT) validation via Entra ID.
-// NOTE: This section will throw on startup until real AzureAd values
-// are filled in in appsettings.Development.json (see that file's
-// comments). Until then, run with AUTH_ENABLED=false (see below) so
-// you can build and test controllers without a working Entra ID
-// tenant yet.
 // ---------------------------------------------------------------
 var authEnabled = builder.Configuration.GetValue<bool>("AuthEnabled", false);
 
 if (authEnabled)
 {
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+        .AddMicrosoftIdentityWebApi(
+            builder.Configuration.GetSection("AzureAd"));
 
     builder.Services.AddAuthorization(options =>
     {
@@ -29,18 +27,15 @@ if (authEnabled)
 }
 
 // ---------------------------------------------------------------
-// Database — EF Core against Azure SQL / local SQL Server.
-// NOTE: this only actually connects when a controller calls into
-// LccCmsDbContext. The API will start fine with no DB reachable;
-// it'll only fail on the first request that touches the database.
-// Uncomment once you've scaffolded LccCmsDbContext (see Step 2 of
-// the Backend Scaffold Guide v2) — it doesn't exist yet in this
-// hand-written starter project.
+// Database - EF Core / SQL Server
 // ---------------------------------------------------------------
-// builder.Services.AddDbContext<LccCmsDbContext>(options =>
-//     options.UseSqlServer(builder.Configuration.GetConnectionString("LccCmsDb")));
+builder.Services.AddDbContext<LccCmsDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("LccCmsDb")));
 
-// CORS — the React SPA runs on a different origin (localhost:5173) during dev
+// ---------------------------------------------------------------
+// CORS
+// ---------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SpaClient", policy =>
@@ -63,8 +58,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("SpaClient");
 
-// Serves files placed under wwwroot/ — required for uploaded admissions
-// documents (wwwroot/uploads/admissions) to be reachable by URL.
+// Static files
 app.UseStaticFiles();
 
 if (authEnabled)
