@@ -257,7 +257,7 @@ public class LearningController : ControllerBase
         var saved = SaveFile(file, "submissions");
         if (saved.Error is not null) return BadRequest(saved.Error);
 
-        var student = StudentsController._students.FirstOrDefault(s => s.Id == studentId);
+        var studentName = await StudentDirectory.DisplayNameAsync(_dbContext, studentId);
         var existing = _submissions.FirstOrDefault(s => s.AssignmentId == id && s.StudentId == studentId);
         if (existing is null)
         {
@@ -266,7 +266,7 @@ public class LearningController : ControllerBase
                 Id = _nextSubmissionId++,
                 AssignmentId = id,
                 StudentId = studentId,
-                StudentName = student?.FullName ?? studentId,
+                StudentName = studentName,
                 FileUrl = saved.Path!,
                 FileName = saved.OriginalName!,
                 SubmittedAt = now,
@@ -280,6 +280,7 @@ public class LearningController : ControllerBase
 
         existing.FileUrl = saved.Path!;
         existing.FileName = saved.OriginalName!;
+        existing.StudentName = studentName;
         existing.SubmittedAt = now;
         existing.IsLate = isLate;
         existing.MarksAwarded = null;

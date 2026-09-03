@@ -57,15 +57,15 @@ public class AttendanceController : ControllerBase
         _sessions.Add(session1);
         _sessions.Add(session2);
 
-        SeedMark(session1.Id, "LCC-24001", "Present");
-        SeedMark(session1.Id, "LCC-24002", "Present");
-        SeedMark(session1.Id, "LCC-24003", "Absent");
-        SeedMark(session1.Id, "LCC-24004", "Present");
+        SeedMark(session1.Id, "LCC-24001", "Mond Mare", "Present");
+        SeedMark(session1.Id, "LCC-24002", "Sarah Kuman", "Present");
+        SeedMark(session1.Id, "LCC-24003", "Peter Namba", "Absent");
+        SeedMark(session1.Id, "LCC-24004", "Agnes Wemin", "Present");
 
-        SeedMark(session2.Id, "LCC-24001", "Present");
-        SeedMark(session2.Id, "LCC-24002", "Absent");
-        SeedMark(session2.Id, "LCC-24003", "Absent");
-        SeedMark(session2.Id, "LCC-24004", "Late");
+        SeedMark(session2.Id, "LCC-24001", "Mond Mare", "Present");
+        SeedMark(session2.Id, "LCC-24002", "Sarah Kuman", "Absent");
+        SeedMark(session2.Id, "LCC-24003", "Peter Namba", "Absent");
+        SeedMark(session2.Id, "LCC-24004", "Agnes Wemin", "Late");
 
         RecalculateAlertsFromSeed(1, "BAM101", "Introduction to Business");
     }
@@ -84,15 +84,14 @@ public class AttendanceController : ControllerBase
         };
     }
 
-    private static void SeedMark(int sessionId, string studentId, string status)
+    private static void SeedMark(int sessionId, string studentId, string studentName, string status)
     {
-        var student = StudentsController._students.First(s => s.Id == studentId);
         _marks.Add(new AttendanceMarkRecord
         {
             Id = _nextMarkId++,
             SessionId = sessionId,
             StudentId = studentId,
-            StudentName = student.FullName,
+            StudentName = studentName,
             Status = status,
         });
     }
@@ -179,8 +178,7 @@ public class AttendanceController : ControllerBase
             }
 
             var existing = _marks.FirstOrDefault(m => m.SessionId == id && m.StudentId == entry.StudentId);
-            var name = StudentsController._students.FirstOrDefault(s => s.Id == entry.StudentId)?.FullName
-                       ?? entry.StudentId;
+            var name = await StudentDirectory.DisplayNameAsync(_dbContext, entry.StudentId);
             if (existing is null)
             {
                 _marks.Add(new AttendanceMarkRecord
