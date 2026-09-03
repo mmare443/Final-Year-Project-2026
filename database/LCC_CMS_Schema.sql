@@ -263,7 +263,10 @@ CREATE TABLE grades (
     assessment_id           INT NOT NULL REFERENCES assessments(assessment_id),
     student_id              INT NOT NULL REFERENCES students(student_id),
     marks_obtained          DECIMAL(5,2) NOT NULL CHECK (marks_obtained >= 0),
-    grade_letter            NVARCHAR(3) NULL CHECK (grade_letter IN ('HD','D','C','P','F+','F') OR grade_letter IS NULL),
+    -- Grade scale corrected 2026: LCC's real scale is A/B/C/D/F (verified
+    -- against an official LCC academic transcript), replacing the earlier
+    -- placeholder HD/D/C/P/F+/F, which was never based on real LCC data.
+    grade_letter            NVARCHAR(3) NULL CHECK (grade_letter IN ('A','B','C','D','F') OR grade_letter IS NULL),
     published               BIT NOT NULL DEFAULT 0,
     overridden_by           INT NULL REFERENCES staff(staff_id),
     override_justification  NVARCHAR(500) NULL,
@@ -271,6 +274,20 @@ CREATE TABLE grades (
 );
 CREATE INDEX IX_grades_student    ON grades(student_id);
 CREATE INDEX IX_grades_published  ON grades(published);
+
+-- LCC's confirmed grade-point scale, added 2026 — a single shared lookup
+-- rather than duplicating the A=4/B=3/C=2/D=1/F=0 mapping across
+-- application code. Verified against a real LCC academic transcript:
+-- GPA = SUM(courses.credit_value * grade_scale.grade_value)
+--       / SUM(courses.credit_value)
+-- F=0 is inferred by pattern (no F grade appears on the sample transcript)
+-- and should be confirmed with the Registrar before this goes live.
+CREATE TABLE grade_scale (
+    grade_letter    NVARCHAR(3)  PRIMARY KEY,
+    grade_value     DECIMAL(3,1) NOT NULL CHECK (grade_value >= 0)
+);
+INSERT INTO grade_scale (grade_letter, grade_value) VALUES
+    ('A', 4.0), ('B', 3.0), ('C', 2.0), ('D', 1.0), ('F', 0.0);
 
 -- -------------------------------------------------------------------------
 -- 10. Accommodation & welfare
