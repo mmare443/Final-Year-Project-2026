@@ -1,5 +1,7 @@
+using System.Globalization;
 using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace LCC_CMS_Api.Controllers;
@@ -7,22 +9,22 @@ namespace LCC_CMS_Api.Controllers;
 /// <summary>
 /// M6 — Learning &amp; Assignment Management (Module Specification).
 ///
-/// SKELETON: in-memory materials/assignments/submissions. Files land on
-/// wwwroot/uploads/learning (same local-disk stand-in as M1 admissions
-/// docs) — swap the Write path for Azure Blob Storage when cloud access
-/// exists; store the blob URL in Path / FileUrl. Course allocations are
-/// read through EF Core. Spec entities: assignments C/R/U/D, submissions
-/// C/R/U, courses R. Learning-material metadata is not its own schema
-/// table; it is kept here so lecturers can still distribute files before
-/// a dedicated materials table exists.
+/// Assignments and submissions persist through EF Core. Materials remain
+/// in-memory. Files land on wwwroot/uploads/learning (same local-disk
+/// stand-in as M1 admissions docs) — swap the Write path for Azure Blob
+/// Storage when cloud access exists; store the blob URL in Path / FileUrl.
+/// Course allocations are read through EF Core. Spec entities: assignments
+/// C/R/U/D, submissions C/R/U, courses R. Learning-material metadata is
+/// not its own schema table; it is kept here so lecturers can still
+/// distribute files before a dedicated materials table exists.
 ///
 /// Late-work rule: submissions after dueDate are rejected unless the
-/// lecturer has set AllowLateSubmissions on that assignment. Accepted
-/// late work is flagged IsLate = true. Grading is 0..MaxMarks with
-/// written feedback.
+/// lecturer has set AllowLateSubmissions on that assignment. That flag is
+/// kept on the DTO (no database column). Accepted late work is flagged
+/// IsLate = true. Grading is 0..MaxMarks with written feedback.
 ///
 /// Roster of who may submit = M4 Approved registrations for the
-/// allocation's course/semester.
+/// allocation (EF Core).
 /// </summary>
 [ApiController]
 [Route("api/learning")]
@@ -33,12 +35,9 @@ public class LearningController : ControllerBase
     private const long MaxFileSizeBytes = 10 * 1024 * 1024;
 
     private static readonly List<LearningMaterialRecord> _materials = new();
-    private static readonly List<AssignmentRecord> _assignments = new();
-    private static readonly List<SubmissionRecord> _submissions = new();
+    private static readonly Dictionary<int, bool> _allowLateByAssignmentId = new();
+    private static readonly Dictionary<int, string> _fileNameBySubmissionId = new();
     private static int _nextMaterialId = 1;
-    private static int _nextAssignmentId = 1;
-    private static int _nextSubmissionId = 1;
-    private static bool _seeded;
 
     private readonly IWebHostEnvironment _env;
     private readonly LccCmsDbContext _dbContext;
@@ -47,38 +46,6 @@ public class LearningController : ControllerBase
     {
         _env = env;
         _dbContext = dbContext;
-        EnsureSeed();
-    }
-
-    private static void EnsureSeed()
-    {
-        if (_seeded) return;
-        _seeded = true;
-
-        _assignments.Add(BuildAssignment(1, "Case Study 1",
-            "Write a 1,500-word case analysis of a PNG agribusiness. Submit as PDF.",
-            "2026-12-01T23:59:00Z", 100, allowLate: false));
-        _assignments.Add(BuildAssignment(1, "Week 2 reading notes",
-            "One-page notes on BAM101 lecture 2. Due early in semester — used to demo the late-submission rule.",
-            "2026-03-01T23:59:00Z", 20, allowLate: false));
-    }
-
-    private static AssignmentRecord BuildAssignment(
-        int allocationId, string title, string instructions, string dueDate, decimal maxMarks, bool allowLate)
-    {
-        return new AssignmentRecord
-        {
-            Id = _nextAssignmentId++,
-            AllocationId = allocationId,
-            CourseId = 1,
-            CourseCode = "BAM101",
-            CourseName = "Introduction to Business",
-            Title = title,
-            Instructions = instructions,
-            DueDate = dueDate,
-            MaxMarks = maxMarks,
-            AllowLateSubmissions = allowLate,
-        };
     }
 
     // --- Materials ---
@@ -146,17 +113,22 @@ public class LearningController : ControllerBase
         [FromQuery] int? allocationId,
         [FromQuery] string? studentId)
     {
-        IEnumerable<AssignmentRecord> results = _assignments;
+        var query = AssignmentGraph().AsNoTracking();
         if (allocationId is not null)
         {
-            results = results.Where(a => a.AllocationId == allocationId);
+            query = query.Where(a => a.AllocationId == allocationId);
         }
         else if (studentId is not null)
         {
             var allowed = await AllocationIdsForStudent(studentId);
-            results = results.Where(a => allowed.Contains(a.AllocationId));
+            query = query.Where(a => allowed.Contains(a.AllocationId));
         }
-        return Ok(results.OrderBy(a => a.DueDate));
+
+        var assignments = await query
+            .OrderBy(a => a.DueDate)
+            .ToListAsync();
+
+        return Ok(assignments.Select(ToAssignmentRecord));
     }
 
     [HttpPost("assignments")]
@@ -166,65 +138,128 @@ public class LearningController : ControllerBase
         if (allocation is null) return BadRequest("Course allocation not found.");
         if (string.IsNullOrWhiteSpace(request.Title)) return BadRequest("Title is required.");
         if (request.MaxMarks <= 0) return BadRequest("Maximum marks must be greater than 0.");
-        if (string.IsNullOrWhiteSpace(request.DueDate)) return BadRequest("Due date is required.");
-
-        var created = new AssignmentRecord
+        if (!TryParseDueDate(request.DueDate, out var dueDate))
         {
-            Id = _nextAssignmentId++,
+            return BadRequest("Due date is required and must be a valid date.");
+        }
+
+        var assignment = new Assignment
+        {
             AllocationId = request.AllocationId,
-            CourseId = allocation.Course.CourseId,
-            CourseCode = allocation.Course.CourseCode,
-            CourseName = allocation.Course.CourseName,
             Title = request.Title.Trim(),
             Instructions = request.Instructions?.Trim() ?? "",
-            DueDate = request.DueDate,
+            DueDate = dueDate,
             MaxMarks = request.MaxMarks,
-            AllowLateSubmissions = request.AllowLateSubmissions,
         };
-        _assignments.Add(created);
-        return Ok(created);
+        _dbContext.Assignments.Add(assignment);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            return StatusCode(status, message);
+        }
+
+        _allowLateByAssignmentId[assignment.AssignmentId] = request.AllowLateSubmissions;
+        assignment.Allocation = allocation;
+        return Ok(ToAssignmentRecord(assignment));
     }
 
     [HttpPut("assignments/{id}")]
-    public ActionResult<AssignmentRecord> UpdateAssignment(int id, [FromBody] AssignmentWriteRequest request)
+    public async Task<ActionResult<AssignmentRecord>> UpdateAssignment(int id, [FromBody] AssignmentWriteRequest request)
     {
-        var assignment = _assignments.FirstOrDefault(a => a.Id == id);
+        var assignment = await AssignmentGraph().FirstOrDefaultAsync(a => a.AssignmentId == id);
         if (assignment is null) return NotFound();
         if (string.IsNullOrWhiteSpace(request.Title)) return BadRequest("Title is required.");
         if (request.MaxMarks <= 0) return BadRequest("Maximum marks must be greater than 0.");
 
         assignment.Title = request.Title.Trim();
         assignment.Instructions = request.Instructions?.Trim() ?? "";
-        assignment.DueDate = string.IsNullOrWhiteSpace(request.DueDate) ? assignment.DueDate : request.DueDate;
+        if (!string.IsNullOrWhiteSpace(request.DueDate))
+        {
+            if (!TryParseDueDate(request.DueDate, out var dueDate))
+            {
+                return BadRequest("Due date must be a valid date.");
+            }
+            assignment.DueDate = dueDate;
+        }
         assignment.MaxMarks = request.MaxMarks;
-        assignment.AllowLateSubmissions = request.AllowLateSubmissions;
-        return Ok(assignment);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            return StatusCode(status, message);
+        }
+
+        _allowLateByAssignmentId[assignment.AssignmentId] = request.AllowLateSubmissions;
+        return Ok(ToAssignmentRecord(assignment));
     }
 
     [HttpDelete("assignments/{id}")]
-    public IActionResult DeleteAssignment(int id)
+    public async Task<IActionResult> DeleteAssignment(int id)
     {
-        var assignment = _assignments.FirstOrDefault(a => a.Id == id);
+        var assignment = await AssignmentGraph().FirstOrDefaultAsync(a => a.AssignmentId == id);
         if (assignment is null) return NotFound();
-        _submissions.RemoveAll(s => s.AssignmentId == id);
-        _assignments.Remove(assignment);
-        return Ok(assignment);
+
+        var dto = ToAssignmentRecord(assignment);
+
+        var related = await _dbContext.Submissions
+            .Where(s => s.AssignmentId == id)
+            .ToListAsync();
+        foreach (var submission in related)
+        {
+            _fileNameBySubmissionId.Remove(submission.SubmissionId);
+        }
+        _dbContext.Submissions.RemoveRange(related);
+        _dbContext.Assignments.Remove(assignment);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            return StatusCode(status, message);
+        }
+
+        _allowLateByAssignmentId.Remove(id);
+        return Ok(dto);
     }
 
     // --- Submissions ---
 
     [HttpGet("assignments/{id}/submissions")]
-    public ActionResult<IEnumerable<SubmissionRecord>> GetSubmissions(int id)
+    public async Task<ActionResult<IEnumerable<SubmissionRecord>>> GetSubmissions(int id)
     {
-        if (_assignments.All(a => a.Id != id)) return NotFound();
-        return Ok(_submissions.Where(s => s.AssignmentId == id).OrderBy(s => s.StudentName));
+        var exists = await _dbContext.Assignments.AsNoTracking().AnyAsync(a => a.AssignmentId == id);
+        if (!exists) return NotFound();
+
+        var submissions = await SubmissionGraph()
+            .AsNoTracking()
+            .Where(s => s.AssignmentId == id)
+            .ToListAsync();
+
+        return Ok(submissions
+            .Select(ToSubmissionRecord)
+            .OrderBy(s => s.StudentName));
     }
 
     [HttpGet("submissions")]
-    public ActionResult<IEnumerable<SubmissionRecord>> GetMySubmissions([FromQuery] string studentId)
+    public async Task<ActionResult<IEnumerable<SubmissionRecord>>> GetMySubmissions([FromQuery] string studentId)
     {
         if (string.IsNullOrWhiteSpace(studentId)) return BadRequest("studentId is required.");
-        return Ok(_submissions.Where(s => s.StudentId == studentId));
+
+        var submissions = await SubmissionGraph()
+            .AsNoTracking()
+            .Where(s => s.Student.StudentNumber == studentId)
+            .ToListAsync();
+
+        return Ok(submissions.Select(ToSubmissionRecord));
     }
 
     [HttpPost("assignments/{id}/submissions")]
@@ -234,21 +269,27 @@ public class LearningController : ControllerBase
         [FromForm] string studentId,
         IFormFile? file)
     {
-        var assignment = _assignments.FirstOrDefault(a => a.Id == id);
+        var assignment = await _dbContext.Assignments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.AssignmentId == id);
         if (assignment is null) return NotFound();
         if (string.IsNullOrWhiteSpace(studentId)) return BadRequest("studentId is required.");
 
-        var enrolled = (await RosterFor(assignment.AllocationId)).Any(s => s.StudentId == studentId);
+        var student = await FindStudentByNumberAsync(studentId.Trim());
+        if (student is null) return BadRequest("Student was not found.");
+
+        var enrolled = (await RosterFor(assignment.AllocationId)).Any(s => s.StudentId == student.StudentNumber);
         if (!enrolled)
         {
             return BadRequest("You are not registered for this unit.");
         }
 
-        var due = DateTime.Parse(assignment.DueDate, null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var due = assignment.DueDate;
         if (due.Kind == DateTimeKind.Unspecified) due = DateTime.SpecifyKind(due, DateTimeKind.Utc);
         var now = DateTime.UtcNow;
         var isLate = now > due.ToUniversalTime();
-        if (isLate && !assignment.AllowLateSubmissions)
+        var allowLate = _allowLateByAssignmentId.GetValueOrDefault(assignment.AssignmentId);
+        if (isLate && !allowLate)
         {
             return BadRequest(
                 "This assignment is past its due date. Submissions are restricted until the lecturer overrides (allow late submissions).");
@@ -257,44 +298,59 @@ public class LearningController : ControllerBase
         var saved = SaveFile(file, "submissions");
         if (saved.Error is not null) return BadRequest(saved.Error);
 
-        var studentName = await StudentDirectory.DisplayNameAsync(_dbContext, studentId);
-        var existing = _submissions.FirstOrDefault(s => s.AssignmentId == id && s.StudentId == studentId);
+        var existing = await _dbContext.Submissions
+            .Include(s => s.Student)
+                .ThenInclude(st => st.Admission)
+            .FirstOrDefaultAsync(s => s.AssignmentId == id && s.StudentId == student.StudentId);
+
         if (existing is null)
         {
-            var created = new SubmissionRecord
+            existing = new Submission
             {
-                Id = _nextSubmissionId++,
                 AssignmentId = id,
-                StudentId = studentId,
-                StudentName = studentName,
+                StudentId = student.StudentId,
                 FileUrl = saved.Path!,
-                FileName = saved.OriginalName!,
                 SubmittedAt = now,
                 IsLate = isLate,
                 MarksAwarded = null,
                 Feedback = null,
             };
-            _submissions.Add(created);
-            return Ok(created);
+            _dbContext.Submissions.Add(existing);
+        }
+        else
+        {
+            existing.FileUrl = saved.Path!;
+            existing.SubmittedAt = now;
+            existing.IsLate = isLate;
+            existing.MarksAwarded = null;
+            existing.Feedback = null;
         }
 
-        existing.FileUrl = saved.Path!;
-        existing.FileName = saved.OriginalName!;
-        existing.StudentName = studentName;
-        existing.SubmittedAt = now;
-        existing.IsLate = isLate;
-        existing.MarksAwarded = null;
-        existing.Feedback = null;
-        return Ok(existing);
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            return StatusCode(status, message);
+        }
+
+        _fileNameBySubmissionId[existing.SubmissionId] = saved.OriginalName!;
+        existing.Student = student;
+        return Ok(ToSubmissionRecord(existing));
     }
 
     [HttpPut("submissions/{id}/grade")]
-    public ActionResult<SubmissionRecord> Grade(int id, [FromBody] GradeRequest request)
+    public async Task<ActionResult<SubmissionRecord>> Grade(int id, [FromBody] GradeRequest request)
     {
-        var submission = _submissions.FirstOrDefault(s => s.Id == id);
+        var submission = await SubmissionGraph()
+            .FirstOrDefaultAsync(s => s.SubmissionId == id);
         if (submission is null) return NotFound();
 
-        var assignment = _assignments.First(a => a.Id == submission.AssignmentId);
+        var assignment = await _dbContext.Assignments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.AssignmentId == submission.AssignmentId);
+        if (assignment is null) return NotFound();
         if (request.MarksAwarded < 0 || request.MarksAwarded > assignment.MaxMarks)
         {
             return BadRequest($"Marks must be between 0 and {assignment.MaxMarks}.");
@@ -302,7 +358,17 @@ public class LearningController : ControllerBase
 
         submission.MarksAwarded = request.MarksAwarded;
         submission.Feedback = request.Feedback?.Trim() ?? "";
-        return Ok(submission);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            return StatusCode(status, message);
+        }
+
+        return Ok(ToSubmissionRecord(submission));
     }
 
     [HttpGet("summary")]
@@ -310,18 +376,35 @@ public class LearningController : ControllerBase
     {
         if (studentId is not null)
         {
-            var allowed = await AllocationIdsForStudent(studentId);
-            var mine = _assignments.Where(a => allowed.Contains(a.AllocationId)).ToList();
-            var submitted = _submissions.Count(s => s.StudentId == studentId);
-            var pending = mine.Count(a => !_submissions.Any(s => s.AssignmentId == a.Id && s.StudentId == studentId));
+            var student = await FindStudentByNumberAsync(studentId);
+            if (student is null)
+            {
+                return Ok(new { assignmentCount = 0, submittedCount = 0, pendingCount = 0 });
+            }
+
+            var allowed = await AllocationIdsForStudent(student.StudentNumber);
+            var mine = await _dbContext.Assignments
+                .AsNoTracking()
+                .Where(a => allowed.Contains(a.AllocationId))
+                .Select(a => a.AssignmentId)
+                .ToListAsync();
+            var submittedIds = await _dbContext.Submissions
+                .AsNoTracking()
+                .Where(s => s.StudentId == student.StudentId && mine.Contains(s.AssignmentId))
+                .Select(s => s.AssignmentId)
+                .ToListAsync();
+            var submitted = submittedIds.Count;
+            var pending = mine.Count(assignmentId => !submittedIds.Contains(assignmentId));
             return Ok(new { assignmentCount = mine.Count, submittedCount = submitted, pendingCount = pending });
         }
 
-        var ungraded = _submissions.Count(s => s.MarksAwarded is null);
+        var ungraded = await _dbContext.Submissions.CountAsync(s => s.MarksAwarded == null);
+        var assignmentCount = await _dbContext.Assignments.CountAsync();
+        var submissionCount = await _dbContext.Submissions.CountAsync();
         return Ok(new
         {
-            assignmentCount = _assignments.Count,
-            submissionCount = _submissions.Count,
+            assignmentCount,
+            submissionCount,
             pendingGradingCount = ungraded,
         });
     }
@@ -364,32 +447,155 @@ public class LearningController : ControllerBase
             .FirstOrDefaultAsync(a => a.AllocationId == allocationId);
     }
 
+    private IQueryable<Assignment> AssignmentGraph()
+    {
+        return _dbContext.Assignments
+            .Include(a => a.Allocation)
+                .ThenInclude(al => al.Course);
+    }
+
+    private IQueryable<Submission> SubmissionGraph()
+    {
+        return _dbContext.Submissions
+            .Include(s => s.Student)
+                .ThenInclude(st => st.Admission);
+    }
+
+    private async Task<Student?> FindStudentByNumberAsync(string studentNumber)
+    {
+        return await _dbContext.Students
+            .AsNoTracking()
+            .Include(s => s.Admission)
+            .FirstOrDefaultAsync(s => s.StudentNumber == studentNumber);
+    }
+
+    private SubmissionRecord ToSubmissionRecord(Submission submission)
+    {
+        var number = submission.Student.StudentNumber;
+        return new SubmissionRecord
+        {
+            Id = submission.SubmissionId,
+            AssignmentId = submission.AssignmentId,
+            StudentId = number,
+            StudentName = submission.Student.Admission?.ApplicantName ?? number,
+            FileUrl = submission.FileUrl,
+            FileName = _fileNameBySubmissionId.GetValueOrDefault(submission.SubmissionId)
+                ?? Path.GetFileName(submission.FileUrl),
+            SubmittedAt = submission.SubmittedAt,
+            IsLate = submission.IsLate,
+            MarksAwarded = submission.MarksAwarded,
+            Feedback = submission.Feedback,
+        };
+    }
+
+    private AssignmentRecord ToAssignmentRecord(Assignment assignment)
+    {
+        var course = assignment.Allocation.Course;
+        return new AssignmentRecord
+        {
+            Id = assignment.AssignmentId,
+            AllocationId = assignment.AllocationId,
+            CourseId = course.CourseId,
+            CourseCode = course.CourseCode,
+            CourseName = course.CourseName,
+            Title = assignment.Title,
+            Instructions = assignment.Instructions ?? "",
+            DueDate = FormatDueDate(assignment.DueDate),
+            MaxMarks = assignment.MaxMarks,
+            AllowLateSubmissions = _allowLateByAssignmentId.GetValueOrDefault(assignment.AssignmentId),
+        };
+    }
+
+    private static bool TryParseDueDate(string? value, out DateTime dueDate)
+    {
+        dueDate = default;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out dueDate))
+        {
+            return false;
+        }
+
+        if (dueDate.Kind == DateTimeKind.Unspecified)
+        {
+            dueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc);
+        }
+        else if (dueDate.Kind == DateTimeKind.Local)
+        {
+            dueDate = dueDate.ToUniversalTime();
+        }
+
+        return true;
+    }
+
+    private static string FormatDueDate(DateTime dueDate)
+    {
+        var utc = dueDate.Kind == DateTimeKind.Utc
+            ? dueDate
+            : DateTime.SpecifyKind(dueDate, DateTimeKind.Utc);
+        return utc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+    }
+
+    private static bool TryDescribePersistenceFailure(DbUpdateException ex, out int status, out string message)
+    {
+        status = StatusCodes.Status400BadRequest;
+        message = "Could not save the learning record.";
+
+        if (ex.InnerException is not SqlException sql)
+        {
+            return false;
+        }
+
+        if (sql.Number is 2601 or 2627)
+        {
+            status = StatusCodes.Status409Conflict;
+            var detail = sql.Message;
+            if (detail.Contains("UQ_submissions", StringComparison.OrdinalIgnoreCase)
+                || detail.Contains("submissions", StringComparison.OrdinalIgnoreCase))
+            {
+                message = "A submission already exists for this student and assignment.";
+            }
+            else
+            {
+                message = "That record could not be saved because it conflicts with an existing row.";
+            }
+            return true;
+        }
+
+        if (sql.Number == 547)
+        {
+            message = "That record could not be saved because a related row is missing or still in use.";
+            return true;
+        }
+
+        return false;
+    }
+
     private async Task<HashSet<int>> AllocationIdsForStudent(string studentId)
     {
-        var courseSemester = RegistrationsController._registrations
-            .Where(r => r.StudentId == studentId && r.Status == "Approved")
-            .Select(r => (r.CourseId, r.SemesterId))
-            .ToHashSet();
+        var ids = await _dbContext.Registrations
+            .AsNoTracking()
+            .Where(r => r.Status == "Approved" && r.Student.StudentNumber == studentId)
+            .Select(r => r.AllocationId)
+            .ToListAsync();
 
-        var allocations = await _dbContext.CourseAllocations.AsNoTracking().ToListAsync();
-        return allocations
-            .Where(a => courseSemester.Contains((a.CourseId, a.SemesterId)))
-            .Select(a => a.AllocationId)
-            .ToHashSet();
+        return ids.ToHashSet();
     }
 
     private async Task<List<AttendanceRosterStudent>> RosterFor(int allocationId)
     {
-        var allocation = await _dbContext.CourseAllocations
+        var roster = await _dbContext.Registrations
             .AsNoTracking()
-            .FirstOrDefaultAsync(a => a.AllocationId == allocationId);
-        if (allocation is null) return new List<AttendanceRosterStudent>();
+            .Where(r => r.AllocationId == allocationId && r.Status == "Approved")
+            .Select(r => new AttendanceRosterStudent
+            {
+                StudentId = r.Student.StudentNumber,
+                StudentName = r.Student.Admission != null
+                    ? r.Student.Admission.ApplicantName
+                    : r.Student.StudentNumber,
+            })
+            .ToListAsync();
 
-        return RegistrationsController._registrations
-            .Where(r => r.CourseId == allocation.CourseId &&
-                        r.SemesterId == allocation.SemesterId &&
-                        r.Status == "Approved")
-            .Select(r => new AttendanceRosterStudent { StudentId = r.StudentId, StudentName = r.StudentName })
+        return roster
             .DistinctBy(s => s.StudentId)
             .ToList();
     }
