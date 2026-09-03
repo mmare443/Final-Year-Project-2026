@@ -1,14 +1,14 @@
+using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LCC_CMS_Api.Controllers;
 
 /// <summary>
 /// M4 — Course Registration (Module Specification).
 ///
-/// SKELETON: in-memory, same pattern as the rest of this project. Reads
-/// M3's static data directly (AcademicStructureController._courses etc.)
-/// — see that controller's header comment for why this is a deliberate
-/// in-memory-stage simplification, not a real foreign key yet.
+/// SKELETON: registrations remain in-memory. Course and semester lookups
+/// use EF Core via LccCmsDbContext.
 ///
 /// Actors: Student, HoD, Registrar/Admin. Business rules enforced below,
 /// per spec: prerequisites must be met, can't re-register for a passed
@@ -30,6 +30,12 @@ namespace LCC_CMS_Api.Controllers;
 public class RegistrationsController : ControllerBase
 {
     private const int MaxCreditLoad = 40;
+    private readonly LccCmsDbContext _dbContext;
+
+    public RegistrationsController(LccCmsDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
 
     // studentId here matches StudentsController's StudentProfile.Id (e.g.
     // "LCC-24001") — same in-memory-stage simplification as elsewhere.
@@ -37,27 +43,27 @@ public class RegistrationsController : ControllerBase
     // live M4 walkthrough first. Internal so AttendanceController can read it.
     internal static readonly List<RegistrationRecord> _registrations = new()
     {
-        Seed(1, "LCC-24001", "Mond Mare", 1),
-        Seed(2, "LCC-24002", "Sarah Kuman", 1),
-        Seed(3, "LCC-24003", "Peter Namba", 1),
-        Seed(4, "LCC-24004", "Agnes Wemin", 1),
-        Seed(5, "LCC-24001", "Mond Mare", 2),
-        Seed(6, "LCC-24002", "Sarah Kuman", 2),
+        Seed(1, "LCC-24001", "Mond Mare", 1, "BAM101", "Introduction to Business", 10),
+        Seed(2, "LCC-24002", "Sarah Kuman", 1, "BAM101", "Introduction to Business", 10),
+        Seed(3, "LCC-24003", "Peter Namba", 1, "BAM101", "Introduction to Business", 10),
+        Seed(4, "LCC-24004", "Agnes Wemin", 1, "BAM101", "Introduction to Business", 10),
+        Seed(5, "LCC-24001", "Mond Mare", 2, "BAM102", "Principles of Accounting", 10),
+        Seed(6, "LCC-24002", "Sarah Kuman", 2, "BAM102", "Principles of Accounting", 10),
     };
     private static int _nextId = 20;
 
-    private static RegistrationRecord Seed(int id, string studentId, string name, int courseId)
+    private static RegistrationRecord Seed(
+        int id, string studentId, string name, int courseId, string code, string courseName, int credits)
     {
-        var course = AcademicStructureController._courses.First(c => c.Id == courseId);
         return new RegistrationRecord
         {
             Id = id,
             StudentId = studentId,
             StudentName = name,
-            CourseId = course.Id,
-            CourseCode = course.Code,
-            CourseName = course.Name,
-            CreditValue = course.CreditValue,
+            CourseId = courseId,
+            CourseCode = code,
+            CourseName = courseName,
+            CreditValue = credits,
             SemesterId = 1,
             Status = "Approved",
             RegisteredAt = new DateTime(2026, 2, 5, 0, 0, 0, DateTimeKind.Utc),
@@ -74,15 +80,19 @@ public class RegistrationsController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<RegistrationRecord> Register([FromBody] RegistrationRequest request)
+    public async Task<ActionResult<RegistrationRecord>> Register([FromBody] RegistrationRequest request)
     {
-        var activeSemester = AcademicStructureController._semesters.FirstOrDefault(s => s.IsActive);
+        var activeSemester = await _dbContext.Semesters
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.IsActive);
         if (activeSemester is null)
         {
             return BadRequest("No active semester is currently open for registration.");
         }
 
-        var course = AcademicStructureController._courses.FirstOrDefault(c => c.Id == request.CourseId);
+        var course = await _dbContext.Courses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CourseId == request.CourseId);
         if (course is null)
         {
             return BadRequest("Course not found.");
@@ -98,7 +108,7 @@ public class RegistrationsController : ControllerBase
                 r.Status == "Passed");
             if (!prereqMet)
             {
-                return BadRequest($"Prerequisite not met for {course.Code} — {course.Name}.");
+                return BadRequest($"Prerequisite not met for {course.CourseCode} — {course.CourseName}.");
             }
         }
 
@@ -114,17 +124,23 @@ public class RegistrationsController : ControllerBase
         // semester while a request is pending or approved.
         var alreadyRegistered = _registrations.Any(r =>
             r.StudentId == request.StudentId && r.CourseId == request.CourseId &&
-            r.SemesterId == activeSemester.Id && r.Status != "Dropped" && r.Status != "Rejected");
+            r.SemesterId == activeSemester.SemesterId && r.Status != "Dropped" && r.Status != "Rejected");
         if (alreadyRegistered)
         {
             return BadRequest("You are already registered for this course this semester.");
         }
 
         // Rule: per-semester maximum credit/course load.
-        var currentLoad = _registrations
-            .Where(r => r.StudentId == request.StudentId && r.SemesterId == activeSemester.Id &&
+        var loadCourseIds = _registrations
+            .Where(r => r.StudentId == request.StudentId && r.SemesterId == activeSemester.SemesterId &&
                         (r.Status == "Pending" || r.Status == "Approved"))
-            .Sum(r => AcademicStructureController._courses.FirstOrDefault(c => c.Id == r.CourseId)?.CreditValue ?? 0);
+            .Select(r => r.CourseId)
+            .ToList();
+        var currentLoad = loadCourseIds.Count == 0
+            ? 0m
+            : await _dbContext.Courses
+                .Where(c => loadCourseIds.Contains(c.CourseId))
+                .SumAsync(c => c.CreditValue);
         if (currentLoad + course.CreditValue > MaxCreditLoad)
         {
             return BadRequest($"This would exceed your maximum credit load of {MaxCreditLoad} for the semester.");
@@ -135,11 +151,11 @@ public class RegistrationsController : ControllerBase
             Id = _nextId++,
             StudentId = request.StudentId,
             StudentName = request.StudentName,
-            CourseId = course.Id,
-            CourseCode = course.Code,
-            CourseName = course.Name,
-            CreditValue = course.CreditValue,
-            SemesterId = activeSemester.Id,
+            CourseId = course.CourseId,
+            CourseCode = course.CourseCode,
+            CourseName = course.CourseName,
+            CreditValue = (int)course.CreditValue,
+            SemesterId = activeSemester.SemesterId,
             Status = "Pending",
             RejectionReason = null,
             RegisteredAt = DateTime.UtcNow,
@@ -154,12 +170,14 @@ public class RegistrationsController : ControllerBase
     // StartDate/EndDate is a straightforward follow-up once this needs to
     // be date-accurate rather than flag-accurate.
     [HttpDelete("{id}")]
-    public IActionResult Drop(int id)
+    public async Task<IActionResult> Drop(int id)
     {
         var registration = _registrations.FirstOrDefault(r => r.Id == id);
         if (registration is null) return NotFound();
 
-        var semester = AcademicStructureController._semesters.FirstOrDefault(s => s.Id == registration.SemesterId);
+        var semester = await _dbContext.Semesters
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.SemesterId == registration.SemesterId);
         if (semester is null || !semester.IsActive)
         {
             return BadRequest("Add/drop is only permitted within the active semester's registration window.");

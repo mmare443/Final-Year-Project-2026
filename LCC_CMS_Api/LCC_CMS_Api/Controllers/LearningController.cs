@@ -1,17 +1,20 @@
+using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LCC_CMS_Api.Controllers;
 
 /// <summary>
 /// M6 — Learning &amp; Assignment Management (Module Specification).
 ///
-/// SKELETON: in-memory, same pattern as M3–M5. Files land on
+/// SKELETON: in-memory materials/assignments/submissions. Files land on
 /// wwwroot/uploads/learning (same local-disk stand-in as M1 admissions
 /// docs) — swap the Write path for Azure Blob Storage when cloud access
-/// exists; store the blob URL in Path / FileUrl. Spec entities:
-/// assignments C/R/U/D, submissions C/R/U, courses R. Learning-material
-/// metadata is not its own schema table; it is kept here so lecturers can
-/// still distribute files before a dedicated materials table exists.
+/// exists; store the blob URL in Path / FileUrl. Course allocations are
+/// read through EF Core. Spec entities: assignments C/R/U/D, submissions
+/// C/R/U, courses R. Learning-material metadata is not its own schema
+/// table; it is kept here so lecturers can still distribute files before
+/// a dedicated materials table exists.
 ///
 /// Late-work rule: submissions after dueDate are rejected unless the
 /// lecturer has set AllowLateSubmissions on that assignment. Accepted
@@ -38,10 +41,12 @@ public class LearningController : ControllerBase
     private static bool _seeded;
 
     private readonly IWebHostEnvironment _env;
+    private readonly LccCmsDbContext _dbContext;
 
-    public LearningController(IWebHostEnvironment env)
+    public LearningController(IWebHostEnvironment env, LccCmsDbContext dbContext)
     {
         _env = env;
+        _dbContext = dbContext;
         EnsureSeed();
     }
 
@@ -61,15 +66,13 @@ public class LearningController : ControllerBase
     private static AssignmentRecord BuildAssignment(
         int allocationId, string title, string instructions, string dueDate, decimal maxMarks, bool allowLate)
     {
-        var allocation = AcademicStructureController._courseAllocations.First(a => a.Id == allocationId);
-        var course = AcademicStructureController._courses.First(c => c.Id == allocation.CourseId);
         return new AssignmentRecord
         {
             Id = _nextAssignmentId++,
             AllocationId = allocationId,
-            CourseId = course.Id,
-            CourseCode = course.Code,
-            CourseName = course.Name,
+            CourseId = 1,
+            CourseCode = "BAM101",
+            CourseName = "Introduction to Business",
             Title = title,
             Instructions = instructions,
             DueDate = dueDate,
@@ -81,7 +84,7 @@ public class LearningController : ControllerBase
     // --- Materials ---
 
     [HttpGet("materials")]
-    public ActionResult<IEnumerable<LearningMaterialRecord>> GetMaterials(
+    public async Task<ActionResult<IEnumerable<LearningMaterialRecord>>> GetMaterials(
         [FromQuery] int? allocationId,
         [FromQuery] string? studentId)
     {
@@ -92,7 +95,7 @@ public class LearningController : ControllerBase
         }
         else if (studentId is not null)
         {
-            var allowed = AllocationIdsForStudent(studentId);
+            var allowed = await AllocationIdsForStudent(studentId);
             results = results.Where(m => allowed.Contains(m.AllocationId));
         }
         return Ok(results.OrderByDescending(m => m.UploadedAt));
@@ -100,25 +103,24 @@ public class LearningController : ControllerBase
 
     [HttpPost("materials")]
     [RequestSizeLimit(MaxFileSizeBytes + 1024)]
-    public ActionResult<LearningMaterialRecord> UploadMaterial(
+    public async Task<ActionResult<LearningMaterialRecord>> UploadMaterial(
         [FromForm] int allocationId,
         [FromForm] string title,
         IFormFile? file)
     {
-        var allocation = AcademicStructureController._courseAllocations.FirstOrDefault(a => a.Id == allocationId);
+        var allocation = await LoadAllocation(allocationId);
         if (allocation is null) return BadRequest("Course allocation not found.");
         if (string.IsNullOrWhiteSpace(title)) return BadRequest("Title is required.");
 
         var saved = SaveFile(file, "materials");
         if (saved.Error is not null) return BadRequest(saved.Error);
 
-        var course = AcademicStructureController._courses.First(c => c.Id == allocation.CourseId);
         var material = new LearningMaterialRecord
         {
             Id = _nextMaterialId++,
             AllocationId = allocationId,
-            CourseCode = course.Code,
-            CourseName = course.Name,
+            CourseCode = allocation.Course.CourseCode,
+            CourseName = allocation.Course.CourseName,
             Title = title.Trim(),
             Path = saved.Path!,
             FileName = saved.OriginalName!,
@@ -140,7 +142,7 @@ public class LearningController : ControllerBase
     // --- Assignments ---
 
     [HttpGet("assignments")]
-    public ActionResult<IEnumerable<AssignmentRecord>> GetAssignments(
+    public async Task<ActionResult<IEnumerable<AssignmentRecord>>> GetAssignments(
         [FromQuery] int? allocationId,
         [FromQuery] string? studentId)
     {
@@ -151,30 +153,28 @@ public class LearningController : ControllerBase
         }
         else if (studentId is not null)
         {
-            var allowed = AllocationIdsForStudent(studentId);
+            var allowed = await AllocationIdsForStudent(studentId);
             results = results.Where(a => allowed.Contains(a.AllocationId));
         }
         return Ok(results.OrderBy(a => a.DueDate));
     }
 
     [HttpPost("assignments")]
-    public ActionResult<AssignmentRecord> CreateAssignment([FromBody] AssignmentWriteRequest request)
+    public async Task<ActionResult<AssignmentRecord>> CreateAssignment([FromBody] AssignmentWriteRequest request)
     {
-        var allocation = AcademicStructureController._courseAllocations
-            .FirstOrDefault(a => a.Id == request.AllocationId);
+        var allocation = await LoadAllocation(request.AllocationId);
         if (allocation is null) return BadRequest("Course allocation not found.");
         if (string.IsNullOrWhiteSpace(request.Title)) return BadRequest("Title is required.");
         if (request.MaxMarks <= 0) return BadRequest("Maximum marks must be greater than 0.");
         if (string.IsNullOrWhiteSpace(request.DueDate)) return BadRequest("Due date is required.");
 
-        var course = AcademicStructureController._courses.First(c => c.Id == allocation.CourseId);
         var created = new AssignmentRecord
         {
             Id = _nextAssignmentId++,
             AllocationId = request.AllocationId,
-            CourseId = course.Id,
-            CourseCode = course.Code,
-            CourseName = course.Name,
+            CourseId = allocation.Course.CourseId,
+            CourseCode = allocation.Course.CourseCode,
+            CourseName = allocation.Course.CourseName,
             Title = request.Title.Trim(),
             Instructions = request.Instructions?.Trim() ?? "",
             DueDate = request.DueDate,
@@ -229,7 +229,7 @@ public class LearningController : ControllerBase
 
     [HttpPost("assignments/{id}/submissions")]
     [RequestSizeLimit(MaxFileSizeBytes + 1024)]
-    public ActionResult<SubmissionRecord> Submit(
+    public async Task<ActionResult<SubmissionRecord>> Submit(
         int id,
         [FromForm] string studentId,
         IFormFile? file)
@@ -238,7 +238,7 @@ public class LearningController : ControllerBase
         if (assignment is null) return NotFound();
         if (string.IsNullOrWhiteSpace(studentId)) return BadRequest("studentId is required.");
 
-        var enrolled = RosterFor(assignment.AllocationId).Any(s => s.StudentId == studentId);
+        var enrolled = (await RosterFor(assignment.AllocationId)).Any(s => s.StudentId == studentId);
         if (!enrolled)
         {
             return BadRequest("You are not registered for this unit.");
@@ -305,11 +305,11 @@ public class LearningController : ControllerBase
     }
 
     [HttpGet("summary")]
-    public ActionResult<object> GetSummary([FromQuery] string? studentId)
+    public async Task<ActionResult<object>> GetSummary([FromQuery] string? studentId)
     {
         if (studentId is not null)
         {
-            var allowed = AllocationIdsForStudent(studentId);
+            var allowed = await AllocationIdsForStudent(studentId);
             var mine = _assignments.Where(a => allowed.Contains(a.AllocationId)).ToList();
             var submitted = _submissions.Count(s => s.StudentId == studentId);
             var pending = mine.Count(a => !_submissions.Any(s => s.AssignmentId == a.Id && s.StudentId == studentId));
@@ -355,22 +355,33 @@ public class LearningController : ControllerBase
         };
     }
 
-    private static HashSet<int> AllocationIdsForStudent(string studentId)
+    private async Task<CourseAllocation?> LoadAllocation(int allocationId)
+    {
+        return await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .Include(a => a.Course)
+            .FirstOrDefaultAsync(a => a.AllocationId == allocationId);
+    }
+
+    private async Task<HashSet<int>> AllocationIdsForStudent(string studentId)
     {
         var courseSemester = RegistrationsController._registrations
             .Where(r => r.StudentId == studentId && r.Status == "Approved")
             .Select(r => (r.CourseId, r.SemesterId))
             .ToHashSet();
 
-        return AcademicStructureController._courseAllocations
+        var allocations = await _dbContext.CourseAllocations.AsNoTracking().ToListAsync();
+        return allocations
             .Where(a => courseSemester.Contains((a.CourseId, a.SemesterId)))
-            .Select(a => a.Id)
+            .Select(a => a.AllocationId)
             .ToHashSet();
     }
 
-    private static List<AttendanceRosterStudent> RosterFor(int allocationId)
+    private async Task<List<AttendanceRosterStudent>> RosterFor(int allocationId)
     {
-        var allocation = AcademicStructureController._courseAllocations.FirstOrDefault(a => a.Id == allocationId);
+        var allocation = await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.AllocationId == allocationId);
         if (allocation is null) return new List<AttendanceRosterStudent>();
 
         return RegistrationsController._registrations

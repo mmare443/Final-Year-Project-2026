@@ -1,18 +1,14 @@
+using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LCC_CMS_Api.Controllers;
 
 /// <summary>
 /// M3 — Academic Structure (Module Specification).
 ///
-/// SKELETON: in-memory placeholder data, same pattern as every other
-/// controller in this project. Actors: Admin/Registrar only — this whole
-/// controller is the foundation the rest of the system (M4 onward) reads
-/// from, so its lists are exposed as internal static so sibling
-/// controllers (RegistrationsController) can read them directly. This is
-/// a deliberate in-memory-stage simplification; once EF Core/a real
-/// database exists, that becomes a normal foreign-key relationship
-/// instead of a cross-class static reference.
+/// Faculties, departments, programmes, courses, academic years, semesters,
+/// and course allocations are persisted through EF Core.
 ///
 /// [Authorize(Policy = "RegistrarAdminOnly")] goes back on every
 /// write endpoint below once AuthEnabled=true — per the spec, only
@@ -26,279 +22,350 @@ namespace LCC_CMS_Api.Controllers;
 [Route("api/academic-structure")]
 public class AcademicStructureController : ControllerBase
 {
-    internal static readonly List<Faculty> _faculties = new()
-    {
-        new Faculty { Id = 1, Name = "Faculty of Ministry" },
-        new Faculty { Id = 2, Name = "Faculty of Agriculture" },
-        new Faculty { Id = 3, Name = "Faculty of Business Administration" },
-    };
+    private readonly LccCmsDbContext _dbContext;
 
-    internal static readonly List<Department> _departments = new()
+    public AcademicStructureController(LccCmsDbContext dbContext)
     {
-        new Department { Id = 1, Name = "Applied Ministry", FacultyId = 1 },
-        new Department { Id = 2, Name = "Tropical Agriculture", FacultyId = 2 },
-        new Department { Id = 3, Name = "Business Administration and Management", FacultyId = 3 },
-    };
-
-    // Matches Section 1 of the real LCCB Application Form (used in M1's
-    // Apply.jsx too) — this becomes the authoritative source going
-    // forward; M1's own copy stays as-is per its own scope, not swapped
-    // over automatically here.
-    internal static readonly List<ProgrammeRecord> _programmes = new()
-    {
-        new ProgrammeRecord { Id = 1, Name = "Diploma in Applied Ministry", DepartmentId = 1, DurationYears = 3 },
-        new ProgrammeRecord { Id = 2, Name = "Diploma in Tropical Agriculture", DepartmentId = 2, DurationYears = 3 },
-        new ProgrammeRecord { Id = 3, Name = "Diploma in Business Administration and Management", DepartmentId = 3, DurationYears = 3 },
-        new ProgrammeRecord { Id = 4, Name = "Certificate in Applied Ministry", DepartmentId = 1, DurationYears = 2 },
-        new ProgrammeRecord { Id = 5, Name = "Certificate in Tropical Agriculture", DepartmentId = 2, DurationYears = 2 },
-        new ProgrammeRecord { Id = 6, Name = "Certificate in Business Administration and Management", DepartmentId = 3, DurationYears = 2 },
-    };
-
-    internal static readonly List<CourseRecord> _courses = new()
-    {
-        new CourseRecord { Id = 1, Code = "BAM101", Name = "Introduction to Business", ProgrammeId = 3, CreditValue = 10, YearLevel = 1, SemesterNumber = 1, PrerequisiteCourseId = null },
-        new CourseRecord { Id = 2, Code = "BAM102", Name = "Principles of Accounting", ProgrammeId = 3, CreditValue = 10, YearLevel = 1, SemesterNumber = 1, PrerequisiteCourseId = null },
-        new CourseRecord { Id = 3, Code = "BAM201", Name = "Financial Management", ProgrammeId = 3, CreditValue = 10, YearLevel = 2, SemesterNumber = 1, PrerequisiteCourseId = 2 },
-    };
-
-    internal static readonly List<AcademicYearRecord> _academicYears = new()
-    {
-        new AcademicYearRecord { Id = 1, Name = "2026" },
-    };
-
-    internal static readonly List<SemesterRecord> _semesters = new()
-    {
-        new SemesterRecord { Id = 1, AcademicYearId = 1, SemesterNumber = 1, StartDate = "2026-02-01", EndDate = "2026-06-30", IsActive = true },
-        new SemesterRecord { Id = 2, AcademicYearId = 1, SemesterNumber = 2, StartDate = "2026-07-15", EndDate = "2026-11-30", IsActive = false },
-    };
-
-    internal static readonly List<CourseAllocationRecord> _courseAllocations = new()
-    {
-        new CourseAllocationRecord { Id = 1, CourseId = 1, SemesterId = 1, LecturerName = "Mr. J. Kaupa" },
-        new CourseAllocationRecord { Id = 2, CourseId = 2, SemesterId = 1, LecturerName = "Mrs. A. Temu" },
-    };
-
-    private static int _nextId = 100;
+        _dbContext = dbContext;
+    }
 
     // --- Faculties ---
     [HttpGet("faculties")]
-    public ActionResult<IEnumerable<Faculty>> GetFaculties() => Ok(_faculties);
+    public async Task<IActionResult> GetFaculties()
+    {
+        var faculties = await _dbContext.Faculties
+            .AsNoTracking()
+            .Select(f => new { f.FacultyId, f.FacultyName })
+            .ToListAsync();
+
+        return Ok(faculties);
+    }
 
     [HttpPost("faculties")]
-    public ActionResult<Faculty> CreateFaculty([FromBody] Faculty request)
+    public async Task<IActionResult> CreateFaculty([FromBody] Faculty request)
     {
-        var f = new Faculty { Id = _nextId++, Name = request.Name };
-        _faculties.Add(f);
+        var f = new Faculty { FacultyName = request.FacultyName };
+        _dbContext.Faculties.Add(f);
+        await _dbContext.SaveChangesAsync();
         return Ok(f);
     }
 
     [HttpPut("faculties/{id}")]
-    public ActionResult<Faculty> UpdateFaculty(int id, [FromBody] Faculty request)
+    public async Task<IActionResult> UpdateFaculty(int id, [FromBody] Faculty request)
     {
-        var f = _faculties.FirstOrDefault(x => x.Id == id);
+        var f = await _dbContext.Faculties.FindAsync(id);
         if (f is null) return NotFound();
-        f.Name = request.Name;
+        f.FacultyName = request.FacultyName;
+        await _dbContext.SaveChangesAsync();
         return Ok(f);
     }
 
     // --- Departments ---
     [HttpGet("departments")]
-    public ActionResult<IEnumerable<Department>> GetDepartments() => Ok(_departments);
+    public async Task<IActionResult> GetDepartments()
+    {
+        var departments = await _dbContext.Departments
+            .AsNoTracking()
+            .Select(d => new { d.DepartmentId, d.DepartmentName, d.FacultyId })
+            .ToListAsync();
+
+        return Ok(departments);
+    }
 
     [HttpPost("departments")]
-    public ActionResult<Department> CreateDepartment([FromBody] Department request)
+    public async Task<IActionResult> CreateDepartment([FromBody] Department request)
     {
-        var d = new Department { Id = _nextId++, Name = request.Name, FacultyId = request.FacultyId };
-        _departments.Add(d);
+        if (!await _dbContext.Faculties.AnyAsync(f => f.FacultyId == request.FacultyId))
+        {
+            return BadRequest("Faculty not found.");
+        }
+
+        var d = new Department
+        {
+            DepartmentName = request.DepartmentName,
+            FacultyId = request.FacultyId,
+        };
+        _dbContext.Departments.Add(d);
+        await _dbContext.SaveChangesAsync();
         return Ok(d);
     }
 
     [HttpPut("departments/{id}")]
-    public ActionResult<Department> UpdateDepartment(int id, [FromBody] Department request)
+    public async Task<IActionResult> UpdateDepartment(int id, [FromBody] Department request)
     {
-        var d = _departments.FirstOrDefault(x => x.Id == id);
+        var d = await _dbContext.Departments.FindAsync(id);
         if (d is null) return NotFound();
-        d.Name = request.Name;
+
+        if (!await _dbContext.Faculties.AnyAsync(f => f.FacultyId == request.FacultyId))
+        {
+            return BadRequest("Faculty not found.");
+        }
+
+        d.DepartmentName = request.DepartmentName;
         d.FacultyId = request.FacultyId;
+        await _dbContext.SaveChangesAsync();
         return Ok(d);
     }
 
     // --- Programmes ---
     [HttpGet("programmes")]
-    public ActionResult<IEnumerable<ProgrammeRecord>> GetProgrammes() => Ok(_programmes);
+    public async Task<IActionResult> GetProgrammes()
+    {
+        var programmes = await _dbContext.Programmes
+            .AsNoTracking()
+            .Select(p => new { p.ProgrammeId, p.ProgrammeName, p.DepartmentId, p.DurationYears })
+            .ToListAsync();
+
+        return Ok(programmes);
+    }
 
     [HttpPost("programmes")]
-    public ActionResult<ProgrammeRecord> CreateProgramme([FromBody] ProgrammeRecord request)
+    public async Task<IActionResult> CreateProgramme([FromBody] Programme request)
     {
-        var p = new ProgrammeRecord { Id = _nextId++, Name = request.Name, DepartmentId = request.DepartmentId, DurationYears = request.DurationYears };
-        _programmes.Add(p);
+        if (!await _dbContext.Departments.AnyAsync(d => d.DepartmentId == request.DepartmentId))
+        {
+            return BadRequest("Department not found.");
+        }
+
+        var p = new Programme
+        {
+            ProgrammeName = request.ProgrammeName,
+            DepartmentId = request.DepartmentId,
+            DurationYears = request.DurationYears,
+        };
+        _dbContext.Programmes.Add(p);
+        await _dbContext.SaveChangesAsync();
         return Ok(p);
     }
 
     [HttpPut("programmes/{id}")]
-    public ActionResult<ProgrammeRecord> UpdateProgramme(int id, [FromBody] ProgrammeRecord request)
+    public async Task<IActionResult> UpdateProgramme(int id, [FromBody] Programme request)
     {
-        var p = _programmes.FirstOrDefault(x => x.Id == id);
+        var p = await _dbContext.Programmes.FindAsync(id);
         if (p is null) return NotFound();
-        p.Name = request.Name;
+
+        if (!await _dbContext.Departments.AnyAsync(d => d.DepartmentId == request.DepartmentId))
+        {
+            return BadRequest("Department not found.");
+        }
+
+        p.ProgrammeName = request.ProgrammeName;
         p.DepartmentId = request.DepartmentId;
         p.DurationYears = request.DurationYears;
+        await _dbContext.SaveChangesAsync();
         return Ok(p);
     }
 
     // --- Courses ---
     [HttpGet("courses")]
-    public ActionResult<IEnumerable<CourseRecord>> GetCourses() => Ok(_courses);
+    public async Task<IActionResult> GetCourses()
+    {
+        var courses = await _dbContext.Courses
+            .AsNoTracking()
+            .Select(c => new
+            {
+                c.CourseId,
+                c.CourseCode,
+                c.CourseName,
+                c.ProgrammeId,
+                c.CreditValue,
+                c.YearLevel,
+                c.SemesterNo,
+                c.IsCore,
+                c.PrerequisiteCourseId,
+            })
+            .ToListAsync();
+
+        return Ok(courses);
+    }
 
     [HttpPost("courses")]
-    public ActionResult<CourseRecord> CreateCourse([FromBody] CourseRecord request)
+    public async Task<IActionResult> CreateCourse([FromBody] Course request)
     {
-        var c = new CourseRecord
+        if (!await _dbContext.Programmes.AnyAsync(p => p.ProgrammeId == request.ProgrammeId))
         {
-            Id = _nextId++,
-            Code = request.Code,
-            Name = request.Name,
+            return BadRequest("Programme not found.");
+        }
+
+        if (request.PrerequisiteCourseId is not null &&
+            !await _dbContext.Courses.AnyAsync(c => c.CourseId == request.PrerequisiteCourseId))
+        {
+            return BadRequest("Prerequisite course not found.");
+        }
+
+        var c = new Course
+        {
+            CourseCode = request.CourseCode,
+            CourseName = request.CourseName,
             ProgrammeId = request.ProgrammeId,
             CreditValue = request.CreditValue,
             YearLevel = request.YearLevel,
-            SemesterNumber = request.SemesterNumber,
+            SemesterNo = request.SemesterNo,
+            IsCore = request.IsCore,
             PrerequisiteCourseId = request.PrerequisiteCourseId,
         };
-        _courses.Add(c);
+        _dbContext.Courses.Add(c);
+        await _dbContext.SaveChangesAsync();
         return Ok(c);
     }
 
     [HttpPut("courses/{id}")]
-    public ActionResult<CourseRecord> UpdateCourse(int id, [FromBody] CourseRecord request)
+    public async Task<IActionResult> UpdateCourse(int id, [FromBody] Course request)
     {
-        var c = _courses.FirstOrDefault(x => x.Id == id);
+        var c = await _dbContext.Courses.FindAsync(id);
         if (c is null) return NotFound();
-        c.Code = request.Code;
-        c.Name = request.Name;
+
+        if (!await _dbContext.Programmes.AnyAsync(p => p.ProgrammeId == request.ProgrammeId))
+        {
+            return BadRequest("Programme not found.");
+        }
+
+        if (request.PrerequisiteCourseId is not null &&
+            !await _dbContext.Courses.AnyAsync(x => x.CourseId == request.PrerequisiteCourseId))
+        {
+            return BadRequest("Prerequisite course not found.");
+        }
+
+        c.CourseCode = request.CourseCode;
+        c.CourseName = request.CourseName;
         c.ProgrammeId = request.ProgrammeId;
         c.CreditValue = request.CreditValue;
         c.YearLevel = request.YearLevel;
-        c.SemesterNumber = request.SemesterNumber;
+        c.SemesterNo = request.SemesterNo;
+        c.IsCore = request.IsCore;
         c.PrerequisiteCourseId = request.PrerequisiteCourseId;
+        await _dbContext.SaveChangesAsync();
         return Ok(c);
     }
 
     // --- Academic Years ---
     [HttpGet("academic-years")]
-    public ActionResult<IEnumerable<AcademicYearRecord>> GetAcademicYears() => Ok(_academicYears);
+    public async Task<IActionResult> GetAcademicYears()
+    {
+        var years = await _dbContext.AcademicYears
+            .AsNoTracking()
+            .Select(y => new { y.AcademicYearId, y.YearName, y.StartDate, y.EndDate })
+            .ToListAsync();
+
+        return Ok(years);
+    }
 
     [HttpPost("academic-years")]
-    public ActionResult<AcademicYearRecord> CreateAcademicYear([FromBody] AcademicYearRecord request)
+    public async Task<IActionResult> CreateAcademicYear([FromBody] AcademicYear request)
     {
-        var y = new AcademicYearRecord { Id = _nextId++, Name = request.Name };
-        _academicYears.Add(y);
+        var y = new AcademicYear
+        {
+            YearName = request.YearName,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+        };
+        _dbContext.AcademicYears.Add(y);
+        await _dbContext.SaveChangesAsync();
         return Ok(y);
     }
 
     // --- Semesters ---
     [HttpGet("semesters")]
-    public ActionResult<IEnumerable<SemesterRecord>> GetSemesters() => Ok(_semesters);
+    public async Task<IActionResult> GetSemesters()
+    {
+        var semesters = await _dbContext.Semesters
+            .AsNoTracking()
+            .Select(s => new
+            {
+                s.SemesterId,
+                s.AcademicYearId,
+                s.SemesterName,
+                s.SemesterNo,
+                s.StartDate,
+                s.EndDate,
+                s.IsActive,
+            })
+            .ToListAsync();
+
+        return Ok(semesters);
+    }
 
     [HttpPost("semesters")]
-    public ActionResult<SemesterRecord> CreateSemester([FromBody] SemesterRecord request)
+    public async Task<IActionResult> CreateSemester([FromBody] Semester request)
     {
-        var s = new SemesterRecord
+        if (!await _dbContext.AcademicYears.AnyAsync(y => y.AcademicYearId == request.AcademicYearId))
         {
-            Id = _nextId++,
+            return BadRequest("Academic year not found.");
+        }
+
+        var s = new Semester
+        {
             AcademicYearId = request.AcademicYearId,
-            SemesterNumber = request.SemesterNumber,
+            SemesterName = string.IsNullOrWhiteSpace(request.SemesterName)
+                ? $"Semester {request.SemesterNo}"
+                : request.SemesterName,
+            SemesterNo = request.SemesterNo,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             IsActive = false, // never active on creation — set via the dedicated activate endpoint
         };
-        _semesters.Add(s);
+        _dbContext.Semesters.Add(s);
+        await _dbContext.SaveChangesAsync();
         return Ok(s);
     }
 
     // Business rule: only one semester may be active at any time.
     [HttpPut("semesters/{id}/activate")]
-    public ActionResult<SemesterRecord> ActivateSemester(int id)
+    public async Task<IActionResult> ActivateSemester(int id)
     {
-        var target = _semesters.FirstOrDefault(x => x.Id == id);
+        var target = await _dbContext.Semesters.FindAsync(id);
         if (target is null) return NotFound();
 
-        foreach (var s in _semesters) s.IsActive = false;
+        var currentlyActive = await _dbContext.Semesters.Where(s => s.IsActive).ToListAsync();
+        foreach (var s in currentlyActive)
+        {
+            s.IsActive = false;
+        }
+        await _dbContext.SaveChangesAsync();
+
         target.IsActive = true;
+        await _dbContext.SaveChangesAsync();
         return Ok(target);
     }
 
     // --- Course Allocations ---
     [HttpGet("course-allocations")]
-    public ActionResult<IEnumerable<CourseAllocationRecord>> GetCourseAllocations() => Ok(_courseAllocations);
+    public async Task<IActionResult> GetCourseAllocations()
+    {
+        var allocations = await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .Select(a => new { a.AllocationId, a.CourseId, a.SemesterId, a.StaffId })
+            .ToListAsync();
+
+        return Ok(allocations);
+    }
 
     [HttpPost("course-allocations")]
-    public ActionResult<CourseAllocationRecord> CreateCourseAllocation([FromBody] CourseAllocationRecord request)
+    public async Task<IActionResult> CreateCourseAllocation([FromBody] CourseAllocation request)
     {
-        var a = new CourseAllocationRecord
+        if (!await _dbContext.Courses.AnyAsync(c => c.CourseId == request.CourseId))
         {
-            Id = _nextId++,
+            return BadRequest("Course not found.");
+        }
+
+        if (!await _dbContext.Semesters.AnyAsync(s => s.SemesterId == request.SemesterId))
+        {
+            return BadRequest("Semester not found.");
+        }
+
+        if (!await _dbContext.Staff.AnyAsync(s => s.StaffId == request.StaffId))
+        {
+            return BadRequest("Staff not found.");
+        }
+
+        var a = new CourseAllocation
+        {
             CourseId = request.CourseId,
             SemesterId = request.SemesterId,
-            LecturerName = request.LecturerName,
+            StaffId = request.StaffId,
         };
-        _courseAllocations.Add(a);
+        _dbContext.CourseAllocations.Add(a);
+        await _dbContext.SaveChangesAsync();
         return Ok(a);
     }
-}
-
-public class Faculty
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = "";
-}
-
-public class Department
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = "";
-    public int FacultyId { get; set; }
-}
-
-public class ProgrammeRecord
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = "";
-    public int DepartmentId { get; set; }
-    public int DurationYears { get; set; }
-}
-
-public class CourseRecord
-{
-    public int Id { get; set; }
-    public string Code { get; set; } = "";
-    public string Name { get; set; } = "";
-    public int ProgrammeId { get; set; }
-    public int CreditValue { get; set; }
-    public int YearLevel { get; set; }
-    public int SemesterNumber { get; set; }
-    public int? PrerequisiteCourseId { get; set; }
-}
-
-public class AcademicYearRecord
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = "";
-}
-
-public class SemesterRecord
-{
-    public int Id { get; set; }
-    public int AcademicYearId { get; set; }
-    public int SemesterNumber { get; set; }
-    public string StartDate { get; set; } = "";
-    public string EndDate { get; set; } = "";
-    public bool IsActive { get; set; }
-}
-
-public class CourseAllocationRecord
-{
-    public int Id { get; set; }
-    public int CourseId { get; set; }
-    public int SemesterId { get; set; }
-    public string LecturerName { get; set; } = "";
 }
