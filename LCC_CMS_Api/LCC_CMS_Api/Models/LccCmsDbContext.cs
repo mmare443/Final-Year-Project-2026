@@ -45,6 +45,8 @@ public partial class LccCmsDbContext : DbContext
 
     public virtual DbSet<Grade> Grades { get; set; }
 
+    public virtual DbSet<GradeScale> GradeScales { get; set; }
+
     public virtual DbSet<Hostel> Hostels { get; set; }
 
     public virtual DbSet<Message> Messages { get; set; }
@@ -530,6 +532,20 @@ public partial class LccCmsDbContext : DbContext
                 .HasForeignKey(d => d.StudentId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__grades__student___2B0A656D");
+        });
+
+        modelBuilder.Entity<GradeScale>(entity =>
+        {
+            entity.HasKey(e => e.GradeLetter).HasName("PK__grade_sc__1B70202E85C20412");
+
+            entity.ToTable("grade_scale");
+
+            entity.Property(e => e.GradeLetter)
+                .HasMaxLength(3)
+                .HasColumnName("grade_letter");
+            entity.Property(e => e.GradeValue)
+                .HasColumnType("decimal(3, 1)")
+                .HasColumnName("grade_value");
         });
 
         modelBuilder.Entity<Hostel>(entity =>
