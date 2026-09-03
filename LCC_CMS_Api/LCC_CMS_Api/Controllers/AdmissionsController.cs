@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace LCC_CMS_Api.Controllers;
@@ -7,11 +8,10 @@ namespace LCC_CMS_Api.Controllers;
 /// <summary>
 /// M1 — Admissions, Enrolment &amp; Readmission (Module Specification).
 ///
-/// Phase 2: list, submit, and decide persist through EF Core
-/// (<c>admissions</c> + <c>programmes</c>). Decide updates Status,
-/// DecisionDate, and ReviewedBy only — it does not create users or students.
-/// Uploaded files still land on wwwroot/uploads/admissions; document
-/// metadata is held in a process-local sidecar until Phase 3.
+/// Phase 3: approve creates a <c>users</c> row and a matching <c>students</c>
+/// row (<c>student_id</c> = <c>user_id</c>), then links
+/// <c>admissions.student_id</c>. Reject still only updates status/date/reviewer.
+/// Uploaded files remain on disk; document table rows wait on a later pass.
 ///
 /// [Authorize(Policy = "RegistrarAdminOnly")] goes back on the decision
 /// endpoint once AuthEnabled=true in appsettings.Development.json.
@@ -168,7 +168,6 @@ public class AdmissionsController : ControllerBase
     }
 
     // [Authorize(Policy = "RegistrarAdminOnly")] — re-enable once AuthEnabled=true
-    // Phase 3 will create User + Student + document rows on approve.
     [HttpPatch("{id}/decision")]
     public async Task<ActionResult<AdmissionApplication>> Decide(int id, [FromBody] AdmissionDecisionRequest request)
     {
@@ -199,14 +198,68 @@ public class AdmissionsController : ControllerBase
                 .Select(s => (int?)s.StaffId)
                 .FirstOrDefaultAsync();
 
-            admission.Status = request.Decision == "approve" ? "Approved" : "Rejected";
             admission.DecisionDate = DateOnly.FromDateTime(DateTime.UtcNow);
             admission.ReviewedBy = placeholderReviewerId;
+
+            if (request.Decision == "reject")
+            {
+                admission.Status = "Rejected";
+                await _dbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return Ok(ToApplication(admission));
+            }
+
+            var email = admission.ApplicantEmail.Trim();
+            if (await _dbContext.Users.AnyAsync(u => u.Email == email))
+            {
+                return Conflict("A user with this email already exists.");
+            }
+
+            if (!await _dbContext.Programmes.AnyAsync(p => p.ProgrammeId == admission.ProgrammeId))
+            {
+                return BadRequest("Programme not found.");
+            }
+
+            var user = new User
+            {
+                Email = email,
+                Role = "Student",
+                Status = "Active",
+                CreatedAt = DateTime.UtcNow,
+                // Unique, 36 chars — replaced when Entra provisioning exists.
+                EntraId = Guid.NewGuid().ToString(),
+            };
+            _dbContext.Users.Add(user);
+            await _dbContext.SaveChangesAsync();
+
+            var studentNumber = await NextStudentNumberAsync();
+            if (await _dbContext.Students.AnyAsync(s => s.StudentNumber == studentNumber))
+            {
+                return Conflict("Could not allocate a unique student number. Retry the decision.");
+            }
+
+            var student = new Student
+            {
+                StudentId = user.UserId,
+                StudentNumber = studentNumber,
+                ProgrammeId = admission.ProgrammeId,
+                EnrolmentStatus = "Enrolled",
+            };
+            _dbContext.Students.Add(student);
+
+            admission.StudentId = user.UserId;
+            admission.Student = student;
+            admission.Status = "Approved";
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Ok(ToApplication(admission));
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            await transaction.RollbackAsync();
+            return StatusCode(status, message);
         }
         catch
         {
@@ -232,6 +285,72 @@ public class AdmissionsController : ControllerBase
         return await _dbContext.Programmes
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.ProgrammeName == request.Programme);
+    }
+
+    private async Task<string> NextStudentNumberAsync()
+    {
+        var numbers = await _dbContext.Students
+            .AsNoTracking()
+            .Select(s => s.StudentNumber)
+            .ToListAsync();
+
+        var max = 24000;
+        foreach (var number in numbers)
+        {
+            if (number.StartsWith("LCC-", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(number.AsSpan(4), out var n)
+                && n > max)
+            {
+                max = n;
+            }
+        }
+
+        return $"LCC-{max + 1}";
+    }
+
+    private static bool TryDescribePersistenceFailure(DbUpdateException ex, out int status, out string message)
+    {
+        status = StatusCodes.Status400BadRequest;
+        message = "Could not save the admission decision.";
+
+        if (ex.InnerException is not SqlException sql)
+        {
+            return false;
+        }
+
+        if (sql.Number is 2601 or 2627)
+        {
+            status = StatusCodes.Status409Conflict;
+            var detail = sql.Message;
+            if (detail.Contains("email", StringComparison.OrdinalIgnoreCase))
+            {
+                message = "A user with this email already exists.";
+            }
+            else if (detail.Contains("student_number", StringComparison.OrdinalIgnoreCase)
+                     || detail.Contains("students", StringComparison.OrdinalIgnoreCase))
+            {
+                message = "Could not allocate a unique student number. Retry the decision.";
+            }
+            else if (detail.Contains("entra", StringComparison.OrdinalIgnoreCase))
+            {
+                message = "Could not allocate a unique account identifier. Retry the decision.";
+            }
+            else
+            {
+                message = "This decision conflicts with an existing record.";
+            }
+
+            return true;
+        }
+
+        if (sql.Number == 547)
+        {
+            status = StatusCodes.Status400BadRequest;
+            message = "A related record was not found (programme, user, or student).";
+            return true;
+        }
+
+        return false;
     }
 
     private AdmissionApplication ToApplication(Admission admission)
