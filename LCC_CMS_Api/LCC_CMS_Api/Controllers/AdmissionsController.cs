@@ -7,14 +7,11 @@ namespace LCC_CMS_Api.Controllers;
 /// <summary>
 /// M1 — Admissions, Enrolment &amp; Readmission (Module Specification).
 ///
-/// Phase 1: list and submit persist through EF Core (<c>admissions</c> +
-/// <c>programmes</c>). Uploaded files still land on
-/// wwwroot/uploads/admissions; document metadata is held in a process-local
-/// sidecar until approval (Phase 3) creates a <c>students</c> row that
-/// <c>documents.student_id</c> can reference.
-///
-/// PATCH /{id}/decision is unchanged in route only — it does not create
-/// users/students or persist a decision yet.
+/// Phase 2: list, submit, and decide persist through EF Core
+/// (<c>admissions</c> + <c>programmes</c>). Decide updates Status,
+/// DecisionDate, and ReviewedBy only — it does not create users or students.
+/// Uploaded files still land on wwwroot/uploads/admissions; document
+/// metadata is held in a process-local sidecar until Phase 3.
 ///
 /// [Authorize(Policy = "RegistrarAdminOnly")] goes back on the decision
 /// endpoint once AuthEnabled=true in appsettings.Development.json.
@@ -171,23 +168,51 @@ public class AdmissionsController : ControllerBase
     }
 
     // [Authorize(Policy = "RegistrarAdminOnly")] — re-enable once AuthEnabled=true
-    // Approval workflow (user + student + document rows) is not implemented yet.
+    // Phase 3 will create User + Student + document rows on approve.
     [HttpPatch("{id}/decision")]
     public async Task<ActionResult<AdmissionApplication>> Decide(int id, [FromBody] AdmissionDecisionRequest request)
     {
-        var admission = await _dbContext.Admissions
-            .AsNoTracking()
-            .Include(a => a.Programme)
-            .Include(a => a.Student)
-            .FirstOrDefaultAsync(a => a.AdmissionId == id);
-        if (admission is null) return NotFound();
-
         if (request.Decision != "approve" && request.Decision != "reject")
         {
             return BadRequest("Decision must be 'approve' or 'reject'.");
         }
 
-        return Ok(ToApplication(admission));
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
+        try
+        {
+            var admission = await _dbContext.Admissions
+                .Include(a => a.Programme)
+                .Include(a => a.Student)
+                .FirstOrDefaultAsync(a => a.AdmissionId == id);
+            if (admission is null) return NotFound();
+
+            if (!string.Equals(admission.Status, "Applied", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict("This application has already been decided.");
+            }
+
+            // Placeholder until AuthEnabled=true resolves the signed-in staff id.
+            // reviewed_by is an optional FK to staff — only set it when a row exists.
+            var placeholderReviewerId = await _dbContext.Staff
+                .AsNoTracking()
+                .Select(s => (int?)s.StaffId)
+                .FirstOrDefaultAsync();
+
+            admission.Status = request.Decision == "approve" ? "Approved" : "Rejected";
+            admission.DecisionDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            admission.ReviewedBy = placeholderReviewerId;
+
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return Ok(ToApplication(admission));
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     private async Task<Programme?> ResolveProgramme(AdmissionApplicationRequest request)
