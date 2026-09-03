@@ -9,8 +9,8 @@ namespace LCC_CMS_Api.Controllers;
 /// <summary>
 /// M5 — Attendance Management (Module Specification).
 ///
-/// SKELETON: sessions persist through EF Core. Marks and alerts remain
-/// in-memory. The Approved roster is read from registrations.
+/// Sessions, marks, rates, reports, and alerts are EF-backed or derived.
+/// Alerts are computed from rates below 75%; they are not stored.
 ///
 /// Actors: Lecturer (mark sessions), Student (own rates + alerts),
 /// HoD (monitoring dashboard and reports by unit or by student).
@@ -30,50 +30,11 @@ public class AttendanceController : ControllerBase
     public const decimal ThresholdPercent = 75m;
     private static readonly string[] AllowedStatuses = { "Present", "Absent", "Late", "Excused" };
 
-    private static readonly List<AttendanceMarkRecord> _marks = new();
-    private static readonly List<AttendanceAlertRecord> _alerts = new();
-    private static int _nextMarkId = 1;
-    private static int _nextAlertId = 1;
-    private static bool _seeded;
     private readonly LccCmsDbContext _dbContext;
 
     public AttendanceController(LccCmsDbContext dbContext)
     {
         _dbContext = dbContext;
-        EnsureSeed();
-    }
-
-    // Two demo sessions on BAM101 so HoD/student screens are not empty
-    // on first load. Rates: Mare 100%, Kuman 50% (alert), Namba 0% (alert),
-    // Wemin 100% (Late counts as attended).
-    private static void EnsureSeed()
-    {
-        if (_seeded) return;
-        _seeded = true;
-
-        SeedMark(1, "LCC-24001", "Mond Mare", "Present");
-        SeedMark(1, "LCC-24002", "Sarah Kuman", "Present");
-        SeedMark(1, "LCC-24003", "Peter Namba", "Absent");
-        SeedMark(1, "LCC-24004", "Agnes Wemin", "Present");
-
-        SeedMark(2, "LCC-24001", "Mond Mare", "Present");
-        SeedMark(2, "LCC-24002", "Sarah Kuman", "Absent");
-        SeedMark(2, "LCC-24003", "Peter Namba", "Absent");
-        SeedMark(2, "LCC-24004", "Agnes Wemin", "Late");
-
-        RecalculateAlertsFromSeed(1, "BAM101", "Introduction to Business");
-    }
-
-    private static void SeedMark(int sessionId, string studentId, string studentName, string status)
-    {
-        _marks.Add(new AttendanceMarkRecord
-        {
-            Id = _nextMarkId++,
-            SessionId = sessionId,
-            StudentId = studentId,
-            StudentName = studentName,
-            Status = status,
-        });
     }
 
     [HttpGet("sessions")]
@@ -99,7 +60,7 @@ public class AttendanceController : ControllerBase
         if (session is null) return NotFound();
 
         var roster = await RosterFor(session.AllocationId);
-        var marks = _marks.Where(m => m.SessionId == id).ToList();
+        var marks = await MarksForSessionAsync(id);
         return Ok(new AttendanceSessionDetail
         {
             Session = ToSessionRecord(session),
@@ -180,32 +141,57 @@ public class AttendanceController : ControllerBase
 
         foreach (var entry in request.Marks)
         {
+            if (string.IsNullOrWhiteSpace(entry.StudentId))
+            {
+                return BadRequest("Student is required for each mark.");
+            }
+
             if (!AllowedStatuses.Contains(entry.Status))
             {
                 return BadRequest("Status must be Present, Absent, Late, or Excused.");
             }
+        }
 
-            var existing = _marks.FirstOrDefault(m => m.SessionId == id && m.StudentId == entry.StudentId);
-            var name = await StudentDirectory.DisplayNameAsync(_dbContext, entry.StudentId);
+        var numbers = request.Marks.Select(m => m.StudentId.Trim()).Distinct().ToList();
+        var students = await _dbContext.Students
+            .Where(s => numbers.Contains(s.StudentNumber))
+            .ToListAsync();
+        if (students.Count != numbers.Count)
+        {
+            return BadRequest("One or more students were not found.");
+        }
+
+        var byNumber = students.ToDictionary(s => s.StudentNumber, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in request.Marks)
+        {
+            var student = byNumber[entry.StudentId.Trim()];
+            var existing = await _dbContext.Attendances
+                .FirstOrDefaultAsync(a => a.SessionId == id && a.StudentId == student.StudentId);
             if (existing is null)
             {
-                _marks.Add(new AttendanceMarkRecord
+                _dbContext.Attendances.Add(new Attendance
                 {
-                    Id = _nextMarkId++,
                     SessionId = id,
-                    StudentId = entry.StudentId,
-                    StudentName = name,
+                    StudentId = student.StudentId,
                     Status = entry.Status,
                 });
             }
             else
             {
                 existing.Status = entry.Status;
-                existing.StudentName = name;
             }
         }
 
-        await RecalculateAlerts(session.AllocationId);
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            return StatusCode(status, message);
+        }
+
         return await GetSession(id);
     }
 
@@ -214,43 +200,20 @@ public class AttendanceController : ControllerBase
         [FromQuery] string? studentId,
         [FromQuery] int? allocationId)
     {
-        var query = _dbContext.CourseAllocations
-            .AsNoTracking()
-            .Include(a => a.Course)
-            .Include(a => a.Staff)
-                .ThenInclude(s => s.StaffNavigation)
-            .AsQueryable();
-        if (allocationId is not null)
-        {
-            query = query.Where(a => a.AllocationId == allocationId);
-        }
-
-        var allocations = await query.ToListAsync();
-
-        var rates = new List<AttendanceRateRecord>();
-        foreach (var allocation in allocations)
-        {
-            var roster = await RosterFor(allocation.AllocationId);
-            var sessionIds = await SessionIdsForAllocationAsync(allocation.AllocationId);
-            foreach (var student in roster)
-            {
-                if (studentId is not null && student.StudentId != studentId) continue;
-                rates.Add(ComputeRate(allocation, student.StudentId, student.StudentName, sessionIds));
-            }
-        }
-
-        return Ok(rates);
+        return Ok(await LoadRatesAsync(studentId, allocationId));
     }
 
     [HttpGet("alerts")]
-    public ActionResult<IEnumerable<AttendanceAlertRecord>> GetAlerts([FromQuery] string? studentId)
+    public async Task<ActionResult<IEnumerable<AttendanceAlertRecord>>> GetAlerts([FromQuery] string? studentId)
     {
-        var results = _alerts.Where(a => a.IsActive);
-        if (studentId is not null)
-        {
-            results = results.Where(a => a.StudentId == studentId);
-        }
-        return Ok(results.OrderByDescending(a => a.AlertedAt));
+        var rates = await LoadRatesAsync(studentId, null);
+        var alerts = rates
+            .Where(r => r.BelowThreshold)
+            .Select(ToAlert)
+            .OrderBy(a => a.RatePercent)
+            .ThenBy(a => a.StudentName)
+            .ToList();
+        return Ok(alerts);
     }
 
     [HttpGet("reports")]
@@ -314,6 +277,30 @@ public class AttendanceController : ControllerBase
             .ToList();
     }
 
+    private async Task<List<AttendanceMarkRecord>> MarksForSessionAsync(int sessionId)
+    {
+        var marks = await _dbContext.Attendances
+            .AsNoTracking()
+            .Where(a => a.SessionId == sessionId)
+            .Include(a => a.Student)
+                .ThenInclude(s => s.Admission)
+            .ToListAsync();
+
+        return marks.Select(ToMarkRecord).ToList();
+    }
+
+    private static AttendanceMarkRecord ToMarkRecord(Attendance mark)
+    {
+        return new AttendanceMarkRecord
+        {
+            Id = mark.AttendanceId,
+            SessionId = mark.SessionId,
+            StudentId = mark.Student.StudentNumber,
+            StudentName = mark.Student.Admission?.ApplicantName ?? mark.Student.StudentNumber,
+            Status = mark.Status,
+        };
+    }
+
     private IQueryable<AttendanceSession> SessionGraph()
     {
         return _dbContext.AttendanceSessions
@@ -325,14 +312,67 @@ public class AttendanceController : ControllerBase
                     .ThenInclude(st => st.StaffNavigation);
     }
 
-    private async Task<HashSet<int>> SessionIdsForAllocationAsync(int allocationId)
+    private async Task<List<AttendanceRateRecord>> LoadRatesAsync(string? studentNumber, int? allocationId)
     {
-        var ids = await _dbContext.AttendanceSessions
+        var query = _dbContext.Registrations
             .AsNoTracking()
-            .Where(s => s.AllocationId == allocationId)
-            .Select(s => s.SessionId)
+            .Where(r => r.Status == "Approved");
+
+        if (allocationId is not null)
+        {
+            query = query.Where(r => r.AllocationId == allocationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(studentNumber))
+        {
+            query = query.Where(r => r.Student.StudentNumber == studentNumber);
+        }
+
+        var rows = await query
+            .Select(r => new
+            {
+                r.AllocationId,
+                CourseCode = r.Allocation.Course.CourseCode,
+                CourseName = r.Allocation.Course.CourseName,
+                LecturerEmail = r.Allocation.Staff.StaffNavigation != null
+                    ? r.Allocation.Staff.StaffNavigation.Email
+                    : null,
+                LecturerTitle = r.Allocation.Staff.JobTitle,
+                StudentNumber = r.Student.StudentNumber,
+                StudentName = r.Student.Admission != null
+                    ? r.Student.Admission.ApplicantName
+                    : r.Student.StudentNumber,
+                Marked = _dbContext.Attendances.Count(a =>
+                    a.StudentId == r.StudentId && a.Session.AllocationId == r.AllocationId),
+                Attended = _dbContext.Attendances.Count(a =>
+                    a.StudentId == r.StudentId
+                    && a.Session.AllocationId == r.AllocationId
+                    && a.Status != "Absent"),
+            })
             .ToListAsync();
-        return ids.ToHashSet();
+
+        return rows
+            .DistinctBy(r => (r.AllocationId, r.StudentNumber))
+            .Select(r =>
+            {
+                var ratePercent = r.Marked == 0 ? 0m : Math.Round(r.Attended * 100m / r.Marked, 1);
+                return new AttendanceRateRecord
+                {
+                    AllocationId = r.AllocationId,
+                    CourseCode = r.CourseCode,
+                    CourseName = r.CourseName,
+                    LecturerName = r.LecturerEmail ?? r.LecturerTitle ?? "",
+                    StudentId = r.StudentNumber,
+                    StudentName = r.StudentName,
+                    SessionsMarked = r.Marked,
+                    SessionsAttended = r.Attended,
+                    RatePercent = ratePercent,
+                    BelowThreshold = r.Marked > 0 && ratePercent < ThresholdPercent,
+                };
+            })
+            .OrderBy(r => r.StudentName)
+            .ThenBy(r => r.CourseCode)
+            .ToList();
     }
 
     private static AttendanceSessionRecord ToSessionRecord(AttendanceSession session)
@@ -350,110 +390,20 @@ public class AttendanceController : ControllerBase
         };
     }
 
-    private AttendanceRateRecord ComputeRate(
-        CourseAllocation allocation,
-        string studentId,
-        string studentName,
-        HashSet<int> sessionIds)
+    private static AttendanceAlertRecord ToAlert(AttendanceRateRecord rate)
     {
-        var studentMarks = _marks.Where(m => sessionIds.Contains(m.SessionId) && m.StudentId == studentId).ToList();
-        var total = studentMarks.Count;
-        var attended = studentMarks.Count(m => m.Status != "Absent");
-        var rate = total == 0 ? 0m : Math.Round(attended * 100m / total, 1);
-
-        return new AttendanceRateRecord
+        return new AttendanceAlertRecord
         {
-            AllocationId = allocation.AllocationId,
-            CourseCode = allocation.Course.CourseCode,
-            CourseName = allocation.Course.CourseName,
-            LecturerName = LecturerName(allocation),
-            StudentId = studentId,
-            StudentName = studentName,
-            SessionsMarked = total,
-            SessionsAttended = attended,
-            RatePercent = rate,
-            BelowThreshold = total > 0 && rate < ThresholdPercent,
+            Id = HashCode.Combine(rate.AllocationId, rate.StudentId) & 0x7fffffff,
+            AllocationId = rate.AllocationId,
+            CourseCode = rate.CourseCode,
+            CourseName = rate.CourseName,
+            StudentId = rate.StudentId,
+            StudentName = rate.StudentName,
+            RatePercent = rate.RatePercent,
+            AlertedAt = default,
+            IsActive = true,
         };
-    }
-
-    private static void RecalculateAlertsFromSeed(int allocationId, string courseCode, string courseName)
-    {
-        var roster = RegistrationsController._registrations
-            .Where(r => r.CourseId == 1 && r.SemesterId == 1 && r.Status == "Approved")
-            .Select(r => new AttendanceRosterStudent { StudentId = r.StudentId, StudentName = r.StudentName })
-            .DistinctBy(s => s.StudentId)
-            .ToList();
-
-        foreach (var student in roster)
-        {
-            var sessionIds = _marks.Select(m => m.SessionId).ToHashSet();
-            var studentMarks = _marks.Where(m => sessionIds.Contains(m.SessionId) && m.StudentId == student.StudentId).ToList();
-            var total = studentMarks.Count;
-            var attended = studentMarks.Count(m => m.Status != "Absent");
-            var rate = total == 0 ? 0m : Math.Round(attended * 100m / total, 1);
-            var below = total > 0 && rate < ThresholdPercent;
-
-            if (!below) continue;
-
-            _alerts.Add(new AttendanceAlertRecord
-            {
-                Id = _nextAlertId++,
-                AllocationId = allocationId,
-                CourseCode = courseCode,
-                CourseName = courseName,
-                StudentId = student.StudentId,
-                StudentName = student.StudentName,
-                RatePercent = rate,
-                AlertedAt = DateTime.UtcNow,
-                IsActive = true,
-            });
-        }
-    }
-
-    private async Task RecalculateAlerts(int allocationId)
-    {
-        var allocation = await LoadAllocation(allocationId);
-        if (allocation is null) return;
-
-        var roster = await RosterFor(allocationId);
-        var sessionIds = await SessionIdsForAllocationAsync(allocationId);
-        foreach (var student in roster)
-        {
-            var rate = ComputeRate(allocation, student.StudentId, student.StudentName, sessionIds);
-            var existing = _alerts.FirstOrDefault(a =>
-                a.AllocationId == allocationId && a.StudentId == student.StudentId);
-
-            if (rate.BelowThreshold)
-            {
-                if (existing is null)
-                {
-                    _alerts.Add(new AttendanceAlertRecord
-                    {
-                        Id = _nextAlertId++,
-                        AllocationId = allocationId,
-                        CourseCode = rate.CourseCode,
-                        CourseName = rate.CourseName,
-                        StudentId = student.StudentId,
-                        StudentName = student.StudentName,
-                        RatePercent = rate.RatePercent,
-                        AlertedAt = DateTime.UtcNow,
-                        IsActive = true,
-                    });
-                }
-                else
-                {
-                    existing.RatePercent = rate.RatePercent;
-                    existing.IsActive = true;
-                    existing.CourseCode = rate.CourseCode;
-                    existing.CourseName = rate.CourseName;
-                }
-            }
-            else if (existing is not null)
-            {
-                existing.IsActive = false;
-                existing.RatePercent = rate.RatePercent;
-            }
-        }
     }
 
     private static bool TryDescribePersistenceFailure(DbUpdateException ex, out int status, out string message)
@@ -469,14 +419,24 @@ public class AttendanceController : ControllerBase
         if (sql.Number is 2601 or 2627)
         {
             status = StatusCodes.Status409Conflict;
-            message = "A session already exists for this class on that date.";
+            var detail = sql.Message;
+            if (detail.Contains("attendance_sessions", StringComparison.OrdinalIgnoreCase)
+                || detail.Contains("UQ_attendance_sessions", StringComparison.OrdinalIgnoreCase))
+            {
+                message = "A session already exists for this class on that date.";
+            }
+            else
+            {
+                message = "This attendance mark already exists.";
+            }
+
             return true;
         }
 
         if (sql.Number == 547)
         {
             status = StatusCodes.Status400BadRequest;
-            message = "A related record was not found (course allocation).";
+            message = "A related record was not found (session, student, or course allocation).";
             return true;
         }
 
