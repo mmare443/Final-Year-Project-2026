@@ -43,10 +43,12 @@ builder.Services.AddCors(options =>
     options.AddPolicy("SpaClient", policy =>
         policy.WithOrigins("http://localhost:5173")
               .AllowAnyHeader()
-              .AllowAnyMethod());
+              .AllowAnyMethod()
+              .AllowCredentials());
 });
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -70,5 +72,6 @@ if (authEnabled)
 }
 
 app.MapControllers();
+app.MapHub<LCC_CMS_Api.Hubs.MessageHub>("/hubs/messages");
 
 app.Run();

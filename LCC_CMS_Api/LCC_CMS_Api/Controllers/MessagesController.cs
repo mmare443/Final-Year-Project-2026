@@ -1,26 +1,28 @@
+using LCC_CMS_Api.Hubs;
 using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace LCC_CMS_Api.Controllers;
 
 /// <summary>
-/// M8 Phase 2 — persisted staff–student messages. SignalR is a later phase.
-///
-/// Inbox/sent are scoped by query userId (users.user_id). Soft-delete sets
-/// IsDeleted; those rows stay in the table and are omitted from listings.
-/// Student-to-student and staff-to-staff are rejected (FR-8.3).
+/// M8 Phase 2–3 — persisted staff–student messages. SignalR notifies after
+/// save; this API remains the source of truth. Inbox/sent are scoped by
+/// query userId. Soft-delete sets IsDeleted.
 /// </summary>
 [ApiController]
 [Route("api/messages")]
 public class MessagesController : ControllerBase
 {
     private readonly LccCmsDbContext _dbContext;
+    private readonly IHubContext<MessageHub> _messageHub;
 
-    public MessagesController(LccCmsDbContext dbContext)
+    public MessagesController(LccCmsDbContext dbContext, IHubContext<MessageHub> messageHub)
     {
         _dbContext = dbContext;
+        _messageHub = messageHub;
     }
 
     [HttpGet("inbox")]
@@ -114,6 +116,23 @@ public class MessagesController : ControllerBase
 
         message.Sender = sender;
         message.Recipient = recipient;
+
+        try
+        {
+            await _messageHub.Clients
+                .Group(MessageHub.GroupName(recipient.UserId))
+                .SendAsync("InboxUpdated", new MessageNotification
+                {
+                    MessageId = message.MessageId,
+                    SenderId = message.SenderId,
+                    RecipientId = message.RecipientId,
+                });
+        }
+        catch
+        {
+            // Persist succeeded; notification is best-effort.
+        }
+
         return Ok(ToRecord(message));
     }
 
