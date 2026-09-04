@@ -64,6 +64,51 @@ public class CourseResultService
         };
     }
 
+    public async Task<TranscriptRecord?> GetTranscriptAsync(string studentNumber)
+    {
+        var student = await _dbContext.Students
+            .AsNoTracking()
+            .Include(s => s.Programme)
+            .Include(s => s.Admission)
+            .FirstOrDefaultAsync(s => s.StudentNumber == studentNumber);
+        if (student is null) return null;
+
+        var attempts = await LoadCompletedAttemptsAsync(student.StudentId);
+
+        int? activeSemesterId = await _dbContext.Semesters
+            .AsNoTracking()
+            .Where(s => s.IsActive)
+            .Select(s => (int?)s.SemesterId)
+            .FirstOrDefaultAsync();
+
+        var semesterAttempts = activeSemesterId is null
+            ? attempts
+            : attempts.Where(a => a.SemesterId == activeSemesterId).ToList();
+
+        var gpa = ToGpaRecord(student.StudentNumber, semesterAttempts, activeSemesterId);
+        var cgpa = ToGpaRecord(student.StudentNumber, attempts, semesterId: null);
+
+        return new TranscriptRecord
+        {
+            StudentNumber = student.StudentNumber,
+            StudentName = student.Admission?.ApplicantName ?? student.StudentNumber,
+            Programme = student.Programme.ProgrammeName,
+            Gpa = gpa.Gpa,
+            Cgpa = cgpa.Gpa,
+            CompletedCourses = attempts
+                .OrderBy(a => a.CourseCode)
+                .ThenBy(a => a.SemesterId)
+                .Select(a => new TranscriptCourseRecord
+                {
+                    CourseCode = a.CourseCode,
+                    CourseName = a.CourseName,
+                    CourseLetter = a.Letter,
+                    Credits = a.CreditValue,
+                })
+                .ToList(),
+        };
+    }
+
     private async Task<Student?> FindStudentAsync(string studentNumber)
     {
         return await _dbContext.Students
@@ -128,10 +173,14 @@ public class CourseResultService
             var letter = LetterFromPercent(weightedPercent);
             if (!scale.TryGetValue(letter, out var gradeValue)) continue;
 
+            var course = registration.Allocation.Course;
             completed.Add(new CompletedAttempt
             {
                 SemesterId = registration.Allocation.SemesterId,
-                CreditValue = registration.Allocation.Course.CreditValue,
+                CourseCode = course.CourseCode,
+                CourseName = course.CourseName,
+                Letter = letter,
+                CreditValue = course.CreditValue,
                 GradeValue = gradeValue,
             });
         }
@@ -171,6 +220,9 @@ public class CourseResultService
     private sealed class CompletedAttempt
     {
         public int SemesterId { get; set; }
+        public string CourseCode { get; set; } = "";
+        public string CourseName { get; set; } = "";
+        public string Letter { get; set; } = "";
         public decimal CreditValue { get; set; }
         public decimal GradeValue { get; set; }
     }
@@ -191,4 +243,22 @@ public class CgpaRecord
     public decimal? Cgpa { get; set; }
     public int CompletedCourseCount { get; set; }
     public decimal TotalCredits { get; set; }
+}
+
+public class TranscriptRecord
+{
+    public string StudentNumber { get; set; } = "";
+    public string StudentName { get; set; } = "";
+    public string Programme { get; set; } = "";
+    public decimal? Gpa { get; set; }
+    public decimal? Cgpa { get; set; }
+    public List<TranscriptCourseRecord> CompletedCourses { get; set; } = new();
+}
+
+public class TranscriptCourseRecord
+{
+    public string CourseCode { get; set; } = "";
+    public string CourseName { get; set; } = "";
+    public string CourseLetter { get; set; } = "";
+    public decimal Credits { get; set; }
 }

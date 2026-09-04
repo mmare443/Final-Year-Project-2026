@@ -5,7 +5,7 @@ namespace LCC_CMS_Api.Controllers;
 
 /// <summary>
 /// M7 Phase 4 — GPA and CGPA from published, completed course attempts.
-/// Transcript generation is a later phase.
+/// Transcript JSON is GET /api/students/{studentNumber}/transcript.
 /// </summary>
 [ApiController]
 [Route("api/students")]
