@@ -1,0 +1,223 @@
+using LCC_CMS_Api.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+
+namespace LCC_CMS_Api.Controllers;
+
+/// <summary>
+/// M8 Phase 2 — persisted staff–student messages. SignalR is a later phase.
+///
+/// Inbox/sent are scoped by query userId (users.user_id). Soft-delete sets
+/// IsDeleted; those rows stay in the table and are omitted from listings.
+/// Student-to-student and staff-to-staff are rejected (FR-8.3).
+/// </summary>
+[ApiController]
+[Route("api/messages")]
+public class MessagesController : ControllerBase
+{
+    private readonly LccCmsDbContext _dbContext;
+
+    public MessagesController(LccCmsDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    [HttpGet("inbox")]
+    public async Task<ActionResult<IEnumerable<MessageRecord>>> GetInbox([FromQuery] int userId)
+    {
+        if (userId <= 0) return BadRequest("User is required.");
+        if (!await _dbContext.Users.AsNoTracking().AnyAsync(u => u.UserId == userId))
+        {
+            return BadRequest("User was not found.");
+        }
+
+        var messages = await MessageGraph()
+            .AsNoTracking()
+            .Where(m => m.RecipientId == userId && !m.IsDeleted)
+            .OrderByDescending(m => m.SentAt)
+            .ThenByDescending(m => m.MessageId)
+            .ToListAsync();
+
+        return Ok(messages.Select(ToRecord));
+    }
+
+    [HttpGet("sent")]
+    public async Task<ActionResult<IEnumerable<MessageRecord>>> GetSent([FromQuery] int userId)
+    {
+        if (userId <= 0) return BadRequest("User is required.");
+        if (!await _dbContext.Users.AsNoTracking().AnyAsync(u => u.UserId == userId))
+        {
+            return BadRequest("User was not found.");
+        }
+
+        var messages = await MessageGraph()
+            .AsNoTracking()
+            .Where(m => m.SenderId == userId && !m.IsDeleted)
+            .OrderByDescending(m => m.SentAt)
+            .ThenByDescending(m => m.MessageId)
+            .ToListAsync();
+
+        return Ok(messages.Select(ToRecord));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<MessageRecord>> SendMessage([FromBody] MessageWriteRequest request)
+    {
+        var content = request.Content?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return BadRequest("Content is required.");
+        }
+        if (content.Length > 2000)
+        {
+            return BadRequest("Content cannot exceed 2000 characters.");
+        }
+        if (request.SenderId <= 0) return BadRequest("Sender is required.");
+        if (request.RecipientId <= 0) return BadRequest("Recipient is required.");
+        if (request.SenderId == request.RecipientId)
+        {
+            return BadRequest("Sender and recipient must be different.");
+        }
+
+        var sender = await _dbContext.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == request.SenderId);
+        if (sender is null) return BadRequest("Sender was not found.");
+
+        var recipient = await _dbContext.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == request.RecipientId);
+        if (recipient is null) return BadRequest("Recipient was not found.");
+
+        if (!IsStaffStudentPair(sender.Role, recipient.Role))
+        {
+            return BadRequest("Messages are only allowed between a staff member and a student.");
+        }
+
+        var message = new Message
+        {
+            SenderId = sender.UserId,
+            RecipientId = recipient.UserId,
+            Content = content,
+            SentAt = DateTime.UtcNow,
+            IsDeleted = false,
+        };
+        _dbContext.Messages.Add(message);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var messageText))
+        {
+            return StatusCode(status, messageText);
+        }
+
+        message.Sender = sender;
+        message.Recipient = recipient;
+        return Ok(ToRecord(message));
+    }
+
+    [HttpPut("{id}/delete")]
+    public async Task<ActionResult<MessageRecord>> SoftDelete(int id)
+    {
+        var message = await MessageGraph().FirstOrDefaultAsync(m => m.MessageId == id);
+        if (message is null) return NotFound();
+        if (message.IsDeleted) return NotFound();
+
+        message.IsDeleted = true;
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var messageText))
+        {
+            return StatusCode(status, messageText);
+        }
+
+        return Ok(ToRecord(message));
+    }
+
+    private IQueryable<Message> MessageGraph()
+    {
+        return _dbContext.Messages
+            .Include(m => m.Sender)
+            .Include(m => m.Recipient);
+    }
+
+    private static bool IsStaffStudentPair(string senderRole, string recipientRole)
+    {
+        var senderStudent = IsStudentRole(senderRole);
+        var recipientStudent = IsStudentRole(recipientRole);
+        var senderStaff = IsStaffRole(senderRole);
+        var recipientStaff = IsStaffRole(recipientRole);
+        return (senderStudent && recipientStaff) || (senderStaff && recipientStudent);
+    }
+
+    private static bool IsStudentRole(string? role) =>
+        string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsStaffRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return false;
+        return role.Equals("Lecturer", StringComparison.OrdinalIgnoreCase)
+            || role.Equals("HoD", StringComparison.OrdinalIgnoreCase)
+            || role.Equals("Registrar/Admin", StringComparison.OrdinalIgnoreCase)
+            || role.Equals("RegistrarAdmin", StringComparison.OrdinalIgnoreCase)
+            || role.Equals("Management/Principal", StringComparison.OrdinalIgnoreCase)
+            || role.Equals("ManagementPrincipal", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static MessageRecord ToRecord(Message message)
+    {
+        return new MessageRecord
+        {
+            Id = message.MessageId,
+            SenderId = message.SenderId,
+            SenderEmail = message.Sender?.Email ?? "",
+            RecipientId = message.RecipientId,
+            RecipientEmail = message.Recipient?.Email ?? "",
+            Content = message.Content,
+            SentAt = message.SentAt,
+            IsDeleted = message.IsDeleted,
+        };
+    }
+
+    private static bool TryDescribePersistenceFailure(DbUpdateException ex, out int status, out string message)
+    {
+        status = StatusCodes.Status400BadRequest;
+        message = "Could not save the message.";
+
+        if (ex.InnerException is not SqlException sql)
+        {
+            return false;
+        }
+
+        if (sql.Number == 547)
+        {
+            message = "A related record was not found, or the message violates a database rule.";
+            return true;
+        }
+
+        return false;
+    }
+}
+
+public class MessageRecord
+{
+    public int Id { get; set; }
+    public int SenderId { get; set; }
+    public string SenderEmail { get; set; } = "";
+    public int RecipientId { get; set; }
+    public string RecipientEmail { get; set; } = "";
+    public string Content { get; set; } = "";
+    public DateTime SentAt { get; set; }
+    public bool IsDeleted { get; set; }
+}
+
+public class MessageWriteRequest
+{
+    public int SenderId { get; set; }
+    public int RecipientId { get; set; }
+    public string Content { get; set; } = "";
+}
