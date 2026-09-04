@@ -12,9 +12,11 @@ namespace LCC_CMS_Api.Controllers;
 /// Public student id is StudentNumber; persisted StudentId is the int PK.
 /// GradeLetter is derived from assessment percentage using LCC letters
 /// A/B/C/D/F. Point values (A=4 … F=0) live on grade_scale for later GPA.
-/// SaveGrades always stores Published = false. PUT publish sets Published
-/// = true on every grade for that assessment. Students read published
-/// rows only via GET /api/results/me.
+/// SaveGrades always stores Published = false and refuses rows that are
+/// already published. PUT publish sets Published = true on every grade
+/// for that assessment. Post-publication changes use
+/// PUT /api/grades/{id}/override (justification + audit log). Students
+/// read published rows only via GET /api/results/me.
 /// </summary>
 [ApiController]
 [Route("api/assessments")]
@@ -100,6 +102,17 @@ public class GradesController : ControllerBase
         foreach (var entry in request.Grades)
         {
             var student = byNumber[entry.StudentId.Trim()];
+            var existing = await _dbContext.Grades
+                .FirstOrDefaultAsync(g => g.AssessmentId == id && g.StudentId == student.StudentId);
+            if (existing is not null && existing.Published)
+            {
+                return Conflict("Published grades can only be changed via override.");
+            }
+        }
+
+        foreach (var entry in request.Grades)
+        {
+            var student = byNumber[entry.StudentId.Trim()];
             var letter = LetterFromMarks(entry.MarksObtained, assessment.MaxMarks);
             var existing = await _dbContext.Grades
                 .FirstOrDefaultAsync(g => g.AssessmentId == id && g.StudentId == student.StudentId);
@@ -163,6 +176,80 @@ public class GradesController : ControllerBase
         return Ok(await LoadRosterGradesAsync(assessment));
     }
 
+    [HttpPut("~/api/grades/{id}/override")]
+    public async Task<ActionResult<GradeRecord>> OverrideGrade(int id, [FromBody] OverrideGradeRequest request)
+    {
+        var justification = request.Justification?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(justification))
+        {
+            return BadRequest("A justification is required to override a published grade.");
+        }
+        if (justification.Length > 500)
+        {
+            return BadRequest("Justification cannot exceed 500 characters.");
+        }
+
+        var grade = await _dbContext.Grades
+            .Include(g => g.Assessment)
+            .Include(g => g.Student)
+                .ThenInclude(s => s.Admission)
+            .FirstOrDefaultAsync(g => g.GradeId == id);
+        if (grade is null) return NotFound();
+
+        if (!grade.Published)
+        {
+            return Conflict("Only published grades may be overridden.");
+        }
+
+        var maxMarks = grade.Assessment.MaxMarks;
+        if (request.MarksObtained < 0 || request.MarksObtained > maxMarks)
+        {
+            return BadRequest($"Marks must be between 0 and {maxMarks}.");
+        }
+
+        // Placeholder until AuthEnabled=true resolves the signed-in staff id.
+        var staffId = await _dbContext.Staff
+            .AsNoTracking()
+            .Select(s => (int?)s.StaffId)
+            .FirstOrDefaultAsync();
+        if (staffId is null)
+        {
+            return BadRequest("No staff record is available to record the override.");
+        }
+
+        var oldLetter = grade.GradeLetter;
+        var oldMarks = grade.MarksObtained;
+        var letter = LetterFromMarks(request.MarksObtained, maxMarks);
+
+        grade.MarksObtained = request.MarksObtained;
+        grade.GradeLetter = letter;
+        grade.Published = true;
+        grade.OverriddenBy = staffId;
+        grade.OverrideJustification = justification;
+
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            UserId = staffId.Value,
+            Action = "Update",
+            TableName = "grades",
+            RecordId = grade.GradeId.ToString(),
+            OldValue = $"marks={oldMarks};letter={oldLetter}",
+            NewValue = $"marks={request.MarksObtained};letter={letter};justification={justification}",
+            Timestamp = DateTime.UtcNow,
+        });
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
+        {
+            return StatusCode(status, message);
+        }
+
+        return Ok(ToRecord(grade, grade.Assessment));
+    }
+
     private async Task<List<GradeRecord>> LoadRosterGradesAsync(Assessment assessment)
     {
         var roster = await _dbContext.Registrations
@@ -201,8 +288,26 @@ public class GradesController : ControllerBase
                 MarksObtained = grade?.MarksObtained,
                 GradeLetter = grade?.GradeLetter,
                 Published = grade?.Published ?? false,
+                OverriddenBy = grade?.OverriddenBy,
+                OverrideJustification = grade?.OverrideJustification,
             };
         }).ToList();
+    }
+
+    private static GradeRecord ToRecord(Grade grade, Assessment assessment)
+    {
+        return new GradeRecord
+        {
+            Id = grade.GradeId,
+            AssessmentId = assessment.AssessmentId,
+            StudentId = grade.Student.StudentNumber,
+            StudentName = grade.Student.Admission?.ApplicantName ?? grade.Student.StudentNumber,
+            MarksObtained = grade.MarksObtained,
+            GradeLetter = grade.GradeLetter,
+            Published = grade.Published,
+            OverriddenBy = grade.OverriddenBy,
+            OverrideJustification = grade.OverrideJustification,
+        };
     }
 
     private async Task<HashSet<int>> ApprovedRosterStudentIdsAsync(int allocationId)
@@ -262,6 +367,14 @@ public class GradeRecord
     public decimal? MarksObtained { get; set; }
     public string? GradeLetter { get; set; }
     public bool Published { get; set; }
+    public int? OverriddenBy { get; set; }
+    public string? OverrideJustification { get; set; }
+}
+
+public class OverrideGradeRequest
+{
+    public decimal MarksObtained { get; set; }
+    public string Justification { get; set; } = "";
 }
 
 public class SaveGradesRequest
