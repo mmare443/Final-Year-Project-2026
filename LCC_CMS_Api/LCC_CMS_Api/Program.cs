@@ -11,70 +11,74 @@ var builder = WebApplication.CreateBuilder(args);
 // Authentication — bearer token (JWT) validation via Entra ID.
 // ---------------------------------------------------------------
 var authEnabled = builder.Configuration.GetValue<bool>("AuthEnabled", false);
+var azureAdConfigured = IsAzureAdConfigured(builder.Configuration);
 
-// JWT is registered even when AuthEnabled=false so GET /api/me can be
-// tested with a real Entra token. [Authorize] stays commented; there is
-// no fallback policy. Lab still uses X-User-Id when no token is present.
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
-
-builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+// JWT only when AzureAd has a real tenant + API client id (GUIDs).
+// Placeholders such as "<your-tenant-id>" must not call Microsoft.Identity.Web
+// or startup throws IDW10106. Lab identity is X-User-Id (AuthEnabled=false).
+if (azureAdConfigured)
 {
-    options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
-    options.TokenValidationParameters.NameClaimType = "preferred_username";
-    var audience = builder.Configuration["AzureAd:Audience"];
-    if (!string.IsNullOrWhiteSpace(audience))
-    {
-        options.TokenValidationParameters.ValidAudience = audience;
-    }
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 
-    options.Events ??= new JwtBearerEvents();
-    var previousMessage = options.Events.OnMessageReceived;
-    options.Events.OnMessageReceived = async context =>
+    builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
     {
-        var accessToken = context.Request.Query["access_token"];
-        if (!string.IsNullOrEmpty(accessToken)
-            && context.HttpContext.Request.Path.StartsWithSegments("/hubs/messages"))
+        options.TokenValidationParameters.RoleClaimType = ClaimTypes.Role;
+        options.TokenValidationParameters.NameClaimType = "preferred_username";
+        var audience = builder.Configuration["AzureAd:Audience"];
+        if (!string.IsNullOrWhiteSpace(audience) && Guid.TryParse(audience, out _))
         {
-            context.Token = accessToken;
+            options.TokenValidationParameters.ValidAudience = audience;
         }
 
-        if (previousMessage is not null)
+        options.Events ??= new JwtBearerEvents();
+        var previousMessage = options.Events.OnMessageReceived;
+        options.Events.OnMessageReceived = async context =>
         {
-            await previousMessage(context);
-        }
-    };
+            var accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(accessToken)
+                && context.HttpContext.Request.Path.StartsWithSegments("/hubs/messages"))
+            {
+                context.Token = accessToken;
+            }
 
-    var previousValidated = options.Events.OnTokenValidated;
-    options.Events.OnTokenValidated = async context =>
-    {
-        var logger = context.HttpContext.RequestServices
-            .GetRequiredService<ILoggerFactory>()
-            .CreateLogger("LCC_CMS_Api.Identity");
-        var principal = context.Principal;
-        var oid = principal?.FindFirstValue(ClaimConstants.ObjectId)
-            ?? principal?.FindFirstValue("oid")
-            ?? principal?.FindFirstValue("sub");
-        var roles = principal is null
-            ? new List<string>()
-            : principal.FindAll(ClaimTypes.Role)
-                .Concat(principal.FindAll("roles"))
-                .Select(c => c.Value)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        logger.LogInformation(
-            "JWT validated. Oid={Oid} Roles={Roles}",
-            oid ?? "(none)",
-            roles.Count == 0 ? "(none)" : string.Join(",", roles));
+            if (previousMessage is not null)
+            {
+                await previousMessage(context);
+            }
+        };
 
-        if (previousValidated is not null)
+        var previousValidated = options.Events.OnTokenValidated;
+        options.Events.OnTokenValidated = async context =>
         {
-            await previousValidated(context);
-        }
-    };
-});
+            var logger = context.HttpContext.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("LCC_CMS_Api.Identity");
+            var principal = context.Principal;
+            var oid = principal?.FindFirstValue(ClaimConstants.ObjectId)
+                ?? principal?.FindFirstValue("oid")
+                ?? principal?.FindFirstValue("sub");
+            var roles = principal is null
+                ? new List<string>()
+                : principal.FindAll(ClaimTypes.Role)
+                    .Concat(principal.FindAll("roles"))
+                    .Select(c => c.Value)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            logger.LogInformation(
+                "JWT validated. Oid={Oid} Roles={Roles}",
+                oid ?? "(none)",
+                roles.Count == 0 ? "(none)" : string.Join(",", roles));
 
-builder.Services.AddScoped<IClaimsTransformation, LCC_CMS_Api.Services.EntraRoleClaimsTransformation>();
+            if (previousValidated is not null)
+            {
+                await previousValidated(context);
+            }
+        };
+    });
+
+    builder.Services.AddScoped<IClaimsTransformation, LCC_CMS_Api.Services.EntraRoleClaimsTransformation>();
+}
 
 builder.Services.AddAuthorization(options =>
 {
@@ -123,6 +127,13 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+if (!azureAdConfigured)
+{
+    app.Logger.LogInformation(
+        "AzureAd is not configured. Skipping JWT. Lab identity uses X-User-Id (AuthEnabled={AuthEnabled}).",
+        authEnabled);
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -134,7 +145,11 @@ app.UseCors("SpaClient");
 // Static files
 app.UseStaticFiles();
 
-app.UseAuthentication();
+if (azureAdConfigured)
+{
+    app.UseAuthentication();
+}
+
 if (authEnabled)
 {
     app.UseAuthorization();
@@ -159,3 +174,33 @@ app.MapControllers();
 app.MapHub<LCC_CMS_Api.Hubs.MessageHub>("/hubs/messages");
 
 app.Run();
+
+static bool IsAzureAdConfigured(IConfiguration configuration)
+{
+    var tenantId = configuration["AzureAd:TenantId"];
+    var clientId = configuration["AzureAd:ClientId"];
+    return IsConfiguredTenantId(tenantId) && IsAzureAdGuid(clientId);
+}
+
+static bool IsConfiguredTenantId(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value)) return false;
+    if (value.Contains('<') || value.Contains('>')) return false;
+    var trimmed = value.Trim();
+    if (Guid.TryParse(trimmed, out _)) return true;
+    if (trimmed.Equals("common", StringComparison.OrdinalIgnoreCase)
+        || trimmed.Equals("organizations", StringComparison.OrdinalIgnoreCase)
+        || trimmed.Equals("consumers", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    return trimmed.Contains('.') && !trimmed.Contains(' ');
+}
+
+static bool IsAzureAdGuid(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value)) return false;
+    if (value.Contains('<') || value.Contains('>')) return false;
+    return Guid.TryParse(value.Trim(), out _);
+}
