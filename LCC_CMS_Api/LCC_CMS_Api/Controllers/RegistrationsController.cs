@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -12,10 +13,11 @@ namespace LCC_CMS_Api.Controllers;
 /// <c>_registrations</c> is kept in sync so Attendance/Learning rosters
 /// still read Approved rows from the in-memory list.
 ///
-/// Actors: Student, HoD, Registrar/Admin. Business rules enforced below,
-/// per spec: prerequisites must be met, can't re-register for a passed
-/// course, per-semester credit load cap, add/drop only within the active
-/// semester's window, every registration needs HoD or Registrar approval.
+/// Actors: Student, HoD, Registrar/Admin. FR-4.2 / FR-4.3: prerequisites
+/// and already-passed checks use CourseResultService completed attempts
+/// (published A–D). Per-semester credit load cap, add/drop only within the
+/// active semester's window, every registration needs HoD or Registrar
+/// approval.
 ///
 /// SCOPING NOTE: this pass wires the Student submission side and the
 /// Registrar/Admin approval side fully (spec explicitly allows either
@@ -33,10 +35,12 @@ public class RegistrationsController : ControllerBase
 {
     private const int MaxCreditLoad = 40;
     private readonly LccCmsDbContext _dbContext;
+    private readonly CourseResultService _courseResults;
 
-    public RegistrationsController(LccCmsDbContext dbContext)
+    public RegistrationsController(LccCmsDbContext dbContext, CourseResultService courseResults)
     {
         _dbContext = dbContext;
+        _courseResults = courseResults;
     }
 
     // studentId here matches StudentsController's StudentProfile.Id (e.g.
@@ -121,6 +125,7 @@ public class RegistrationsController : ControllerBase
 
         var course = await _dbContext.Courses
             .AsNoTracking()
+            .Include(c => c.PrerequisiteCourse)
             .FirstOrDefaultAsync(c => c.CourseId == request.CourseId);
         if (course is null)
         {
@@ -144,6 +149,12 @@ public class RegistrationsController : ControllerBase
             return Conflict("You are already registered for this course this semester.");
         }
 
+        var eligibility = await DescribeEligibilityFailureAsync(student.StudentId, course);
+        if (eligibility is not null)
+        {
+            return BadRequest(eligibility);
+        }
+
         var currentLoad = await _dbContext.Registrations
             .Where(r => r.StudentId == student.StudentId
                         && r.Allocation.SemesterId == activeSemester.SemesterId
@@ -154,11 +165,15 @@ public class RegistrationsController : ControllerBase
             return BadRequest($"This would exceed your maximum credit load of {MaxCreditLoad} for the semester.");
         }
 
+        var priorAttempts = await _dbContext.Registrations
+            .CountAsync(r => r.StudentId == student.StudentId
+                && r.Allocation.CourseId == course.CourseId);
+
         var registration = new Registration
         {
             StudentId = student.StudentId,
             AllocationId = allocation.AllocationId,
-            AttemptNo = 1,
+            AttemptNo = priorAttempts + 1,
             Status = "Pending",
             RegisteredAt = DateTime.UtcNow,
         };
@@ -265,6 +280,42 @@ public class RegistrationsController : ControllerBase
 
         SyncMemory(record);
         return Ok(record);
+    }
+
+    private async Task<string?> DescribeEligibilityFailureAsync(int studentId, Course course)
+    {
+        var completed = await _courseResults.GetCompletedCoursesAsync(studentId);
+
+        var passedTarget = completed.FirstOrDefault(a =>
+            a.CourseId == course.CourseId && CourseResultService.IsPassingLetter(a.Letter));
+        if (passedTarget is not null)
+        {
+            return $"You have already passed {course.CourseCode} ({course.CourseName}) with grade {passedTarget.Letter}. You cannot register for a course you have already passed.";
+        }
+
+        if (course.PrerequisiteCourseId is null)
+        {
+            return null;
+        }
+
+        var prereq = course.PrerequisiteCourse;
+        var prereqLabel = prereq is null
+            ? $"course {course.PrerequisiteCourseId}"
+            : $"{prereq.CourseCode} ({prereq.CourseName})";
+
+        var prereqAttempts = completed.Where(a => a.CourseId == course.PrerequisiteCourseId).ToList();
+        if (prereqAttempts.Any(a => CourseResultService.IsPassingLetter(a.Letter)))
+        {
+            return null;
+        }
+
+        var failed = prereqAttempts.FirstOrDefault();
+        if (failed is not null)
+        {
+            return $"Prerequisite {prereqLabel} is not met. The published result is {failed.Letter}; a passing grade (A, B, C, or D) is required.";
+        }
+
+        return $"Prerequisite {prereqLabel} is not met. A published passing result is required before you can register.";
     }
 
     private async Task<Registration?> LoadForUpdateAsync(int id)

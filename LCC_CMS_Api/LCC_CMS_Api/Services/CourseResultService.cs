@@ -177,6 +177,7 @@ public class CourseResultService
             completed.Add(new CompletedAttempt
             {
                 SemesterId = registration.Allocation.SemesterId,
+                CourseId = course.CourseId,
                 CourseCode = course.CourseCode,
                 CourseName = course.CourseName,
                 Letter = letter,
@@ -208,6 +209,27 @@ public class CourseResultService
         };
     }
 
+    /// <summary>
+    /// Completed, published course attempts for registration rules (FR-4.2 / FR-4.3).
+    /// Passing letters are A–D; F is completed but not a pass.
+    /// </summary>
+    public async Task<List<CompletedCourseAttempt>> GetCompletedCoursesAsync(int studentId)
+    {
+        var attempts = await LoadCompletedAttemptsAsync(studentId);
+        return attempts.Select(a => new CompletedCourseAttempt
+        {
+            CourseId = a.CourseId,
+            CourseCode = a.CourseCode,
+            CourseName = a.CourseName,
+            Letter = a.Letter,
+        }).ToList();
+    }
+
+    public static bool IsPassingLetter(string? letter)
+    {
+        return letter is "A" or "B" or "C" or "D";
+    }
+
     internal static string LetterFromPercent(decimal percent)
     {
         if (percent >= BandA) return "A";
@@ -220,6 +242,7 @@ public class CourseResultService
     private sealed class CompletedAttempt
     {
         public int SemesterId { get; set; }
+        public int CourseId { get; set; }
         public string CourseCode { get; set; } = "";
         public string CourseName { get; set; } = "";
         public string Letter { get; set; } = "";
@@ -261,4 +284,12 @@ public class TranscriptCourseRecord
     public string CourseName { get; set; } = "";
     public string CourseLetter { get; set; } = "";
     public decimal Credits { get; set; }
+}
+
+public class CompletedCourseAttempt
+{
+    public int CourseId { get; set; }
+    public string CourseCode { get; set; } = "";
+    public string CourseName { get; set; } = "";
+    public string Letter { get; set; } = "";
 }
