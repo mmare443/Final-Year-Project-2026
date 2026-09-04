@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,7 @@ namespace LCC_CMS_Api.Controllers;
 ///
 /// [Authorize(Policy = "StudentOnly")] and [Authorize(Policy =
 /// "RegistrarAdminOnly")] go back on the relevant endpoints once
-/// AuthEnabled=true. Until then, /me is the first student by student number.
+/// AuthEnabled=true. /me uses ICurrentUser (lab: X-User-Id).
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -30,50 +31,59 @@ public class StudentsController : ControllerBase
 
     private readonly IWebHostEnvironment _env;
     private readonly LccCmsDbContext _dbContext;
+    private readonly ICurrentUser _currentUser;
 
-    public StudentsController(IWebHostEnvironment env, LccCmsDbContext dbContext)
+    public StudentsController(
+        IWebHostEnvironment env,
+        LccCmsDbContext dbContext,
+        ICurrentUser currentUser)
     {
         _env = env;
         _dbContext = dbContext;
+        _currentUser = currentUser;
     }
 
     // --- Self-service (Student role) ---
 
     // [Authorize(Policy = "StudentOnly")] — re-enable once AuthEnabled=true
     [HttpGet("me")]
-    public async Task<ActionResult<StudentProfile>> GetMyProfile()
+    public async Task<ActionResult<StudentProfile>> GetMyProfile(CancellationToken cancellationToken)
     {
-        var student = await LoadCurrentStudentAsync();
-        if (student is null) return NotFound();
-        return Ok(ToProfile(student));
+        var loaded = await LoadCurrentStudentAsync(cancellationToken);
+        if (loaded.Error is not null) return loaded.Error;
+        return Ok(ToProfile(loaded.Student!));
     }
 
     // [Authorize(Policy = "StudentOnly")]
     [HttpPut("me")]
-    public async Task<ActionResult<StudentProfile>> UpdateMyProfile([FromBody] StudentProfileEditRequest request)
+    public async Task<ActionResult<StudentProfile>> UpdateMyProfile(
+        [FromBody] StudentProfileEditRequest request,
+        CancellationToken cancellationToken)
     {
-        var student = await LoadCurrentStudentAsync();
-        if (student is null) return NotFound();
+        var loaded = await LoadCurrentStudentAsync(cancellationToken);
+        if (loaded.Error is not null) return loaded.Error;
 
-        ApplyEdits(student, request);
-        await _dbContext.SaveChangesAsync();
-        return Ok(ToProfile(student));
+        ApplyEdits(loaded.Student!, request);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(ToProfile(loaded.Student!));
     }
 
     // [Authorize(Policy = "StudentOnly")]
     [HttpPost("me/photo")]
     [RequestSizeLimit(MaxPhotoSizeBytes + 1024)]
-    public async Task<ActionResult<StudentProfile>> UploadMyPhoto(IFormFile? photo)
+    public async Task<ActionResult<StudentProfile>> UploadMyPhoto(
+        IFormFile? photo,
+        CancellationToken cancellationToken)
     {
-        var student = await LoadCurrentStudentAsync();
-        if (student is null) return NotFound();
+        var loaded = await LoadCurrentStudentAsync(cancellationToken);
+        if (loaded.Error is not null) return loaded.Error;
 
         var saved = SavePhoto(photo);
         if (saved.Error is not null) return BadRequest(saved.Error);
 
-        UpsertProfilePhoto(student, saved.Path!);
-        await _dbContext.SaveChangesAsync();
-        return Ok(ToProfile(student));
+        UpsertProfilePhoto(loaded.Student!, saved.Path!);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(ToProfile(loaded.Student!));
     }
 
     // --- Registrar/Admin oversight ---
@@ -112,12 +122,32 @@ public class StudentsController : ControllerBase
             .Include(s => s.Documents);
     }
 
-    private async Task<Student?> LoadCurrentStudentAsync()
+    private async Task<(Student? Student, ActionResult? Error)> LoadCurrentStudentAsync(
+        CancellationToken cancellationToken)
     {
-        // AuthEnabled=false: no Entra identity yet — first student by number.
-        return await StudentGraph()
-            .OrderBy(s => s.StudentNumber)
-            .FirstOrDefaultAsync();
+        if (!await _currentUser.ResolveAsync(cancellationToken))
+        {
+            return (null, Unauthorized());
+        }
+
+        if (_currentUser.StudentId is not int studentId)
+        {
+            return (null, NotFound());
+        }
+
+        var query = StudentGraph().Where(s => s.StudentId == studentId);
+        if (!string.IsNullOrEmpty(_currentUser.StudentNumber))
+        {
+            query = query.Where(s => s.StudentNumber == _currentUser.StudentNumber);
+        }
+
+        var student = await query.FirstOrDefaultAsync(cancellationToken);
+        if (student is null)
+        {
+            return (null, NotFound());
+        }
+
+        return (student, null);
     }
 
     private static void ApplyEdits(Student student, StudentProfileEditRequest request)

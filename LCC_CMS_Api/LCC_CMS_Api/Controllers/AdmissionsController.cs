@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -8,9 +9,12 @@ namespace LCC_CMS_Api.Controllers;
 /// <summary>
 /// M1 — Admissions, Enrolment &amp; Readmission (Module Specification).
 ///
-/// Phase 3: approve creates a <c>users</c> row and a matching <c>students</c>
-/// row (<c>student_id</c> = <c>user_id</c>), then links
-/// <c>admissions.student_id</c>. Reject still only updates status/date/reviewer.
+/// Phase 3: approve provisions an Entra member (@lccb.ac.pg), then creates
+/// a <c>users</c> row (<c>entra_id</c> = Graph object id) and a matching
+/// <c>students</c> row (<c>student_id</c> = <c>user_id</c>), then links
+/// <c>admissions.student_id</c>. Graph failure leaves the admission Applied.
+/// SQL failure after Graph deletes the Entra user. Welcome email is later
+/// (FR-1.6). Reject still only updates status/date/reviewer.
 /// Uploaded files remain on disk; document table rows wait on a later pass.
 ///
 /// [Authorize(Policy = "RegistrarAdminOnly")] goes back on the decision
@@ -33,11 +37,22 @@ public class AdmissionsController : ControllerBase
 
     private readonly IWebHostEnvironment _env;
     private readonly LccCmsDbContext _dbContext;
+    private readonly ICurrentUser _currentUser;
+    private readonly IEntraUserProvisioner _entraUsers;
+    private readonly ILogger<AdmissionsController> _logger;
 
-    public AdmissionsController(IWebHostEnvironment env, LccCmsDbContext dbContext)
+    public AdmissionsController(
+        IWebHostEnvironment env,
+        LccCmsDbContext dbContext,
+        ICurrentUser currentUser,
+        IEntraUserProvisioner entraUsers,
+        ILogger<AdmissionsController> logger)
     {
         _env = env;
         _dbContext = dbContext;
+        _currentUser = currentUser;
+        _entraUsers = entraUsers;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -169,21 +184,28 @@ public class AdmissionsController : ControllerBase
 
     // [Authorize(Policy = "RegistrarAdminOnly")] — re-enable once AuthEnabled=true
     [HttpPatch("{id}/decision")]
-    public async Task<ActionResult<AdmissionApplication>> Decide(int id, [FromBody] AdmissionDecisionRequest request)
+    public async Task<ActionResult<AdmissionApplication>> Decide(
+        int id,
+        [FromBody] AdmissionDecisionRequest request,
+        CancellationToken cancellationToken)
     {
         if (request.Decision != "approve" && request.Decision != "reject")
         {
             return BadRequest("Decision must be 'approve' or 'reject'.");
         }
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        var staff = await RequireStaffAsync(cancellationToken);
+        if (staff.Error is not null) return staff.Error;
+
+        string? entraObjectId = null;
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
             var admission = await _dbContext.Admissions
                 .Include(a => a.Programme)
                 .Include(a => a.Student)
-                .FirstOrDefaultAsync(a => a.AdmissionId == id);
+                .FirstOrDefaultAsync(a => a.AdmissionId == id, cancellationToken);
             if (admission is null) return NotFound();
 
             if (!string.Equals(admission.Status, "Applied", StringComparison.OrdinalIgnoreCase))
@@ -191,52 +213,54 @@ public class AdmissionsController : ControllerBase
                 return Conflict("This application has already been decided.");
             }
 
-            // Placeholder until AuthEnabled=true resolves the signed-in staff id.
-            // reviewed_by is an optional FK to staff — only set it when a row exists.
-            var placeholderReviewerId = await _dbContext.Staff
-                .AsNoTracking()
-                .Select(s => (int?)s.StaffId)
-                .FirstOrDefaultAsync();
-
             admission.DecisionDate = DateOnly.FromDateTime(DateTime.UtcNow);
-            admission.ReviewedBy = placeholderReviewerId;
+            admission.ReviewedBy = staff.StaffId;
 
             if (request.Decision == "reject")
             {
                 admission.Status = "Rejected";
-                await _dbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
                 return Ok(ToApplication(admission));
             }
 
-            var email = admission.ApplicantEmail.Trim();
-            if (await _dbContext.Users.AnyAsync(u => u.Email == email))
-            {
-                return Conflict("A user with this email already exists.");
-            }
-
-            if (!await _dbContext.Programmes.AnyAsync(p => p.ProgrammeId == admission.ProgrammeId))
+            if (!await _dbContext.Programmes.AnyAsync(p => p.ProgrammeId == admission.ProgrammeId, cancellationToken))
             {
                 return BadRequest("Programme not found.");
             }
 
-            var user = new User
-            {
-                Email = email,
-                Role = "Student",
-                Status = "Active",
-                CreatedAt = DateTime.UtcNow,
-                // Unique, 36 chars — replaced when Entra provisioning exists.
-                EntraId = Guid.NewGuid().ToString(),
-            };
-            _dbContext.Users.Add(user);
-            await _dbContext.SaveChangesAsync();
-
             var studentNumber = await NextStudentNumberAsync();
-            if (await _dbContext.Students.AnyAsync(s => s.StudentNumber == studentNumber))
+            if (await _dbContext.Students.AnyAsync(s => s.StudentNumber == studentNumber, cancellationToken))
             {
                 return Conflict("Could not allocate a unique student number. Retry the decision.");
             }
+
+            var mailNickname = studentNumber.Replace("-", "", StringComparison.Ordinal);
+            var provisioned = await _entraUsers.CreateStudentAccountAsync(
+                admission.ApplicantName,
+                mailNickname,
+                cancellationToken);
+            entraObjectId = provisioned.ObjectId;
+
+            if (await _dbContext.Users.AnyAsync(
+                    u => u.Email == provisioned.UserPrincipalName || u.EntraId == provisioned.ObjectId,
+                    cancellationToken))
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                await CompensateEntraDeleteAsync(entraObjectId, cancellationToken);
+                return Conflict("A user with this Entra account or email already exists.");
+            }
+
+            var user = new User
+            {
+                Email = provisioned.UserPrincipalName,
+                Role = "Student",
+                Status = "Active",
+                CreatedAt = DateTime.UtcNow,
+                EntraId = provisioned.ObjectId,
+            };
+            _dbContext.Users.Add(user);
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
             var student = new Student
             {
@@ -251,21 +275,60 @@ public class AdmissionsController : ControllerBase
             admission.Student = student;
             admission.Status = "Approved";
 
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            entraObjectId = null;
 
             return Ok(ToApplication(admission));
         }
+        catch (EntraProvisioningException ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await CompensateEntraDeleteAsync(entraObjectId, cancellationToken);
+            return StatusCode(ex.StatusCode, ex.Message);
+        }
         catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(cancellationToken);
+            await CompensateEntraDeleteAsync(entraObjectId, cancellationToken);
             return StatusCode(status, message);
         }
         catch
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(cancellationToken);
+            await CompensateEntraDeleteAsync(entraObjectId, cancellationToken);
             throw;
         }
+    }
+
+    private async Task CompensateEntraDeleteAsync(string? objectId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(objectId)) return;
+
+        try
+        {
+            await _entraUsers.DeleteAccountAsync(objectId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not delete Entra user {ObjectId} after a failed approval.", objectId);
+        }
+    }
+
+    private async Task<(int StaffId, ActionResult? Error)> RequireStaffAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.UserId is null)
+        {
+            return (0, Unauthorized());
+        }
+
+        if (_currentUser.StaffId is not int staffId)
+        {
+            return (0, StatusCode(StatusCodes.Status403Forbidden));
+        }
+
+        return (staffId, null);
     }
 
     private async Task<Programme?> ResolveProgramme(AdmissionApplicationRequest request)

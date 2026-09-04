@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,40 +8,60 @@ namespace LCC_CMS_Api.Controllers;
 /// <summary>
 /// M7 Phase 3 — student-visible published results.
 ///
-/// Only grades with Published = true are returned. GPA, CGPA, and
-/// transcripts are later phases. Until AuthEnabled=true, /me is the
-/// first student by student number (same stand-in as StudentsController).
+/// Only grades with Published = true are returned. /me uses ICurrentUser
+/// (lab: X-User-Id). GPA, CGPA, and transcripts are keyed by student number.
 /// </summary>
 [ApiController]
 [Route("api/results")]
 public class ResultsController : ControllerBase
 {
     private readonly LccCmsDbContext _dbContext;
+    private readonly ICurrentUser _currentUser;
 
-    public ResultsController(LccCmsDbContext dbContext)
+    public ResultsController(LccCmsDbContext dbContext, ICurrentUser currentUser)
     {
         _dbContext = dbContext;
+        _currentUser = currentUser;
     }
 
     // [Authorize(Policy = "StudentOnly")] — re-enable once AuthEnabled=true
     [HttpGet("me")]
-    public async Task<ActionResult<IEnumerable<PublishedResultRecord>>> GetMyResults()
+    public async Task<ActionResult<IEnumerable<PublishedResultRecord>>> GetMyResults(
+        CancellationToken cancellationToken)
     {
-        var student = await _dbContext.Students
+        if (!await _currentUser.ResolveAsync(cancellationToken))
+        {
+            return Unauthorized();
+        }
+
+        if (_currentUser.StudentId is not int studentId)
+        {
+            return NotFound();
+        }
+
+        var studentQuery = _dbContext.Students
             .AsNoTracking()
-            .OrderBy(s => s.StudentNumber)
-            .FirstOrDefaultAsync();
-        if (student is null) return NotFound();
+            .Where(s => s.StudentId == studentId);
+        if (!string.IsNullOrEmpty(_currentUser.StudentNumber))
+        {
+            studentQuery = studentQuery.Where(s => s.StudentNumber == _currentUser.StudentNumber);
+        }
+
+        var studentExists = await studentQuery.AnyAsync(cancellationToken);
+        if (!studentExists)
+        {
+            return NotFound();
+        }
 
         var grades = await _dbContext.Grades
             .AsNoTracking()
-            .Where(g => g.StudentId == student.StudentId && g.Published)
+            .Where(g => g.StudentId == studentId && g.Published)
             .Include(g => g.Assessment)
                 .ThenInclude(a => a.Allocation)
                     .ThenInclude(al => al.Course)
             .OrderBy(g => g.Assessment.Allocation.Course.CourseCode)
             .ThenBy(g => g.Assessment.Title)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return Ok(grades.Select(ToRecord));
     }

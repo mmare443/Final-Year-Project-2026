@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -31,10 +32,12 @@ public class GradesController : ControllerBase
     private const decimal BandD = 50m;
 
     private readonly LccCmsDbContext _dbContext;
+    private readonly ICurrentUser _currentUser;
 
-    public GradesController(LccCmsDbContext dbContext)
+    public GradesController(LccCmsDbContext dbContext, ICurrentUser currentUser)
     {
         _dbContext = dbContext;
+        _currentUser = currentUser;
     }
 
     [HttpGet("{id}/grades")]
@@ -177,7 +180,10 @@ public class GradesController : ControllerBase
     }
 
     [HttpPut("~/api/grades/{id}/override")]
-    public async Task<ActionResult<GradeRecord>> OverrideGrade(int id, [FromBody] OverrideGradeRequest request)
+    public async Task<ActionResult<GradeRecord>> OverrideGrade(
+        int id,
+        [FromBody] OverrideGradeRequest request,
+        CancellationToken cancellationToken)
     {
         var justification = request.Justification?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(justification))
@@ -187,6 +193,15 @@ public class GradesController : ControllerBase
         if (justification.Length > 500)
         {
             return BadRequest("Justification cannot exceed 500 characters.");
+        }
+
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.UserId is not int userId)
+        {
+            return Unauthorized();
+        }
+        if (_currentUser.StaffId is not int staffId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
         }
 
         var grade = await _dbContext.Grades
@@ -207,16 +222,6 @@ public class GradesController : ControllerBase
             return BadRequest($"Marks must be between 0 and {maxMarks}.");
         }
 
-        // Placeholder until AuthEnabled=true resolves the signed-in staff id.
-        var staffId = await _dbContext.Staff
-            .AsNoTracking()
-            .Select(s => (int?)s.StaffId)
-            .FirstOrDefaultAsync();
-        if (staffId is null)
-        {
-            return BadRequest("No staff record is available to record the override.");
-        }
-
         var oldLetter = grade.GradeLetter;
         var oldMarks = grade.MarksObtained;
         var letter = LetterFromMarks(request.MarksObtained, maxMarks);
@@ -229,7 +234,7 @@ public class GradesController : ControllerBase
 
         _dbContext.AuditLogs.Add(new AuditLog
         {
-            UserId = staffId.Value,
+            UserId = userId,
             Action = "Update",
             TableName = "grades",
             RecordId = grade.GradeId.ToString(),

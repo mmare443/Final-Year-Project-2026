@@ -36,11 +36,16 @@ public class RegistrationsController : ControllerBase
     private const int MaxCreditLoad = 40;
     private readonly LccCmsDbContext _dbContext;
     private readonly CourseResultService _courseResults;
+    private readonly ICurrentUser _currentUser;
 
-    public RegistrationsController(LccCmsDbContext dbContext, CourseResultService courseResults)
+    public RegistrationsController(
+        LccCmsDbContext dbContext,
+        CourseResultService courseResults,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _courseResults = courseResults;
+        _currentUser = currentUser;
     }
 
     // studentId here matches StudentsController's StudentProfile.Id (e.g.
@@ -234,7 +239,10 @@ public class RegistrationsController : ControllerBase
     // [Authorize(Policy = "RegistrarAdminOnly")] or HoD — re-enable once AuthEnabled=true.
     // Per spec, either role may approve; this endpoint itself is role-agnostic.
     [HttpPut("{id}/decision")]
-    public async Task<ActionResult<RegistrationRecord>> Decide(int id, [FromBody] RegistrationDecisionRequest request)
+    public async Task<ActionResult<RegistrationRecord>> Decide(
+        int id,
+        [FromBody] RegistrationDecisionRequest request,
+        CancellationToken cancellationToken)
     {
         if (request.Decision != "approve" && request.Decision != "reject")
         {
@@ -246,6 +254,15 @@ public class RegistrationsController : ControllerBase
             return BadRequest("A reason is required to reject a registration.");
         }
 
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.UserId is null)
+        {
+            return Unauthorized();
+        }
+        if (_currentUser.StaffId is not int staffId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
         var registration = await LoadForUpdateAsync(id);
         if (registration is null) return NotFound();
 
@@ -254,14 +271,8 @@ public class RegistrationsController : ControllerBase
             return Conflict("Only pending registrations may be decided.");
         }
 
-        // Placeholder until AuthEnabled=true resolves the signed-in staff id.
-        var placeholderReviewerId = await _dbContext.Staff
-            .AsNoTracking()
-            .Select(s => (int?)s.StaffId)
-            .FirstOrDefaultAsync();
-
         registration.Status = request.Decision == "approve" ? "Approved" : "Rejected";
-        registration.ApprovedBy = placeholderReviewerId;
+        registration.ApprovedBy = staffId;
 
         try
         {

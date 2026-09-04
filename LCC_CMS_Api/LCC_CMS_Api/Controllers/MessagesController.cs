@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Hubs;
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.SqlClient;
@@ -9,8 +10,9 @@ namespace LCC_CMS_Api.Controllers;
 
 /// <summary>
 /// M8 Phase 2–3 — persisted staff–student messages. SignalR notifies after
-/// save; this API remains the source of truth. Inbox/sent are scoped by
-/// query userId. Soft-delete sets IsDeleted.
+/// save; this API remains the source of truth. Inbox/sent/send use
+/// ICurrentUser (lab: X-User-Id). Query userId and body SenderId are ignored.
+/// Soft-delete sets IsDeleted.
 /// </summary>
 [ApiController]
 [Route("api/messages")]
@@ -18,54 +20,70 @@ public class MessagesController : ControllerBase
 {
     private readonly LccCmsDbContext _dbContext;
     private readonly IHubContext<MessageHub> _messageHub;
+    private readonly ICurrentUser _currentUser;
 
-    public MessagesController(LccCmsDbContext dbContext, IHubContext<MessageHub> messageHub)
+    public MessagesController(
+        LccCmsDbContext dbContext,
+        IHubContext<MessageHub> messageHub,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _messageHub = messageHub;
+        _currentUser = currentUser;
     }
 
     [HttpGet("inbox")]
-    public async Task<ActionResult<IEnumerable<MessageRecord>>> GetInbox([FromQuery] int userId)
+    public async Task<ActionResult<IEnumerable<MessageRecord>>> GetInbox(
+        [FromQuery] int? userId,
+        CancellationToken cancellationToken)
     {
-        if (userId <= 0) return BadRequest("User is required.");
-        if (!await _dbContext.Users.AsNoTracking().AnyAsync(u => u.UserId == userId))
+        _ = userId;
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.UserId is not int currentUserId)
         {
-            return BadRequest("User was not found.");
+            return Unauthorized();
         }
 
         var messages = await MessageGraph()
             .AsNoTracking()
-            .Where(m => m.RecipientId == userId && !m.IsDeleted)
+            .Where(m => m.RecipientId == currentUserId && !m.IsDeleted)
             .OrderByDescending(m => m.SentAt)
             .ThenByDescending(m => m.MessageId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return Ok(messages.Select(ToRecord));
     }
 
     [HttpGet("sent")]
-    public async Task<ActionResult<IEnumerable<MessageRecord>>> GetSent([FromQuery] int userId)
+    public async Task<ActionResult<IEnumerable<MessageRecord>>> GetSent(
+        [FromQuery] int? userId,
+        CancellationToken cancellationToken)
     {
-        if (userId <= 0) return BadRequest("User is required.");
-        if (!await _dbContext.Users.AsNoTracking().AnyAsync(u => u.UserId == userId))
+        _ = userId;
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.UserId is not int currentUserId)
         {
-            return BadRequest("User was not found.");
+            return Unauthorized();
         }
 
         var messages = await MessageGraph()
             .AsNoTracking()
-            .Where(m => m.SenderId == userId && !m.IsDeleted)
+            .Where(m => m.SenderId == currentUserId && !m.IsDeleted)
             .OrderByDescending(m => m.SentAt)
             .ThenByDescending(m => m.MessageId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return Ok(messages.Select(ToRecord));
     }
 
     [HttpPost]
-    public async Task<ActionResult<MessageRecord>> SendMessage([FromBody] MessageWriteRequest request)
+    public async Task<ActionResult<MessageRecord>> SendMessage(
+        [FromBody] MessageWriteRequest request,
+        CancellationToken cancellationToken)
     {
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.UserId is not int senderId)
+        {
+            return Unauthorized();
+        }
+
         var content = request.Content?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -75,19 +93,18 @@ public class MessagesController : ControllerBase
         {
             return BadRequest("Content cannot exceed 2000 characters.");
         }
-        if (request.SenderId <= 0) return BadRequest("Sender is required.");
         if (request.RecipientId <= 0) return BadRequest("Recipient is required.");
-        if (request.SenderId == request.RecipientId)
+        if (senderId == request.RecipientId)
         {
             return BadRequest("Sender and recipient must be different.");
         }
 
         var sender = await _dbContext.Users.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.UserId == request.SenderId);
-        if (sender is null) return BadRequest("Sender was not found.");
+            .FirstOrDefaultAsync(u => u.UserId == senderId, cancellationToken);
+        if (sender is null) return Unauthorized();
 
         var recipient = await _dbContext.Users.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.UserId == request.RecipientId);
+            .FirstOrDefaultAsync(u => u.UserId == request.RecipientId, cancellationToken);
         if (recipient is null) return BadRequest("Recipient was not found.");
 
         if (!IsStaffStudentPair(sender.Role, recipient.Role))
@@ -236,6 +253,7 @@ public class MessageRecord
 
 public class MessageWriteRequest
 {
+    /// <summary>Ignored. Sender is always the current user.</summary>
     public int SenderId { get; set; }
     public int RecipientId { get; set; }
     public string Content { get; set; } = "";
