@@ -33,6 +33,8 @@ builder.Services.AddDbContext<LccCmsDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("LccCmsDb")));
 
+builder.Services.AddScoped<LCC_CMS_Api.Services.CourseResultService>();
+
 // ---------------------------------------------------------------
 // CORS
 // ---------------------------------------------------------------
