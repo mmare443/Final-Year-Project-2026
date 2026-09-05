@@ -17,6 +17,8 @@ public partial class Staff
 
     public virtual ICollection<Admission> Admissions { get; set; } = new List<Admission>();
 
+    public virtual ICollection<LearningMaterial> UploadedLearningMaterials { get; set; } = new List<LearningMaterial>();
+
     public virtual ICollection<CaseNote> CaseNotes { get; set; } = new List<CaseNote>();
 
     public virtual ICollection<CourseAllocation> CourseAllocations { get; set; } = new List<CourseAllocation>();

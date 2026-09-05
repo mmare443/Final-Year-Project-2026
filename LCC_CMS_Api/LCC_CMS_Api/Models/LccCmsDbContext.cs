@@ -51,6 +51,8 @@ public partial class LccCmsDbContext : DbContext
 
     public virtual DbSet<Hostel> Hostels { get; set; }
 
+    public virtual DbSet<LearningMaterial> LearningMaterials { get; set; }
+
     public virtual DbSet<Message> Messages { get; set; }
 
     public virtual DbSet<Notice> Notices { get; set; }
@@ -263,6 +265,9 @@ public partial class LccCmsDbContext : DbContext
 
             entity.Property(e => e.AssignmentId).HasColumnName("assignment_id");
             entity.Property(e => e.AllocationId).HasColumnName("allocation_id");
+            entity.Property(e => e.AllowLateSubmissions)
+                .HasDefaultValue(false)
+                .HasColumnName("allow_late_submissions");
             entity.Property(e => e.DueDate).HasColumnName("due_date");
             entity.Property(e => e.Instructions).HasColumnName("instructions");
             entity.Property(e => e.MaxMarks)
@@ -602,6 +607,52 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.HostelName)
                 .HasMaxLength(100)
                 .HasColumnName("hostel_name");
+        });
+
+        modelBuilder.Entity<LearningMaterial>(entity =>
+        {
+            entity.HasKey(e => e.LearningMaterialId);
+
+            entity.ToTable("learning_materials");
+
+            entity.HasIndex(e => e.AllocationId, "IX_learning_materials_allocation");
+            entity.HasIndex(e => e.UploadedByStaffId, "IX_learning_materials_uploaded_by");
+
+            entity.Property(e => e.LearningMaterialId)
+                .HasColumnName("learning_material_id");
+            entity.Property(e => e.AllocationId)
+                .HasColumnName("allocation_id");
+            entity.Property(e => e.Title)
+                .HasMaxLength(150)
+                .HasColumnName("title");
+            entity.Property(e => e.StorageKey)
+                .HasMaxLength(500)
+                .HasColumnName("storage_key");
+            entity.Property(e => e.OriginalFileName)
+                .HasMaxLength(255)
+                .HasColumnName("original_file_name");
+            entity.Property(e => e.ContentType)
+                .HasMaxLength(255)
+                .HasColumnName("content_type");
+            entity.Property(e => e.FileSize)
+                .HasColumnName("file_size");
+            entity.Property(e => e.UploadedAt)
+                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasColumnName("uploaded_at");
+            entity.Property(e => e.UploadedByStaffId)
+                .HasColumnName("uploaded_by_staff_id");
+
+            entity.HasOne(d => d.Allocation)
+                .WithMany(p => p.LearningMaterials)
+                .HasForeignKey(d => d.AllocationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK__learning_materials__allocation");
+
+            entity.HasOne(d => d.UploadedByStaff)
+                .WithMany(p => p.UploadedLearningMaterials)
+                .HasForeignKey(d => d.UploadedByStaffId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK__learning_materials__uploaded_by");
         });
 
         modelBuilder.Entity<Message>(entity =>

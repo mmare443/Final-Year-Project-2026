@@ -35,11 +35,6 @@ public class LearningController : ControllerBase
         { ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".zip", ".jpg", ".jpeg", ".png", ".txt" };
     private const long MaxFileSizeBytes = 10 * 1024 * 1024;
 
-    private static readonly List<LearningMaterialRecord> _materials = new();
-    private static readonly Dictionary<int, bool> _allowLateByAssignmentId = new();
-    private static readonly Dictionary<int, string> _fileNameBySubmissionId = new();
-    private static int _nextMaterialId = 1;
-
     private readonly LccCmsDbContext _dbContext;
     private readonly IFileStorage _fileStorage;
     private readonly ICurrentUser _currentUser;
@@ -61,17 +56,25 @@ public class LearningController : ControllerBase
         [FromQuery] int? allocationId,
         [FromQuery] string? studentId)
     {
-        IEnumerable<LearningMaterialRecord> results = _materials;
+        var query = _dbContext.LearningMaterials
+            .AsNoTracking()
+            .Include(m => m.Allocation)
+                .ThenInclude(a => a.Course)
+            .AsQueryable();
         if (allocationId is not null)
         {
-            results = results.Where(m => m.AllocationId == allocationId);
+            query = query.Where(m => m.AllocationId == allocationId);
         }
         else if (studentId is not null)
         {
             var allowed = await AllocationIdsForStudent(studentId);
-            results = results.Where(m => allowed.Contains(m.AllocationId));
+            query = query.Where(m => allowed.Contains(m.AllocationId));
         }
-        return Ok(results.OrderByDescending(m => m.UploadedAt));
+
+        var materials = await query
+            .OrderByDescending(m => m.UploadedAt)
+            .ToListAsync();
+        return Ok(materials.Select(ToMaterialRecord));
     }
 
     [HttpPost("materials")]
@@ -88,20 +91,27 @@ public class LearningController : ControllerBase
         var saved = await SaveFileAsync(file, "materials", HttpContext.RequestAborted);
         if (saved.Error is not null) return BadRequest(saved.Error);
 
-        var material = new LearningMaterialRecord
+        int? uploadedByStaffId = null;
+        if (await _currentUser.ResolveAsync(HttpContext.RequestAborted))
         {
-            Id = _nextMaterialId++,
+            uploadedByStaffId = _currentUser.StaffId;
+        }
+
+        var material = new LearningMaterial
+        {
             AllocationId = allocationId,
-            CourseCode = allocation.Course.CourseCode,
-            CourseName = allocation.Course.CourseName,
             Title = title.Trim(),
-            Path = saved.Path!,
-            FileName = saved.OriginalName!,
-            ContentType = file?.ContentType,
+            StorageKey = saved.Path!,
+            OriginalFileName = saved.OriginalName!,
+            ContentType = saved.ContentType,
+            FileSize = saved.Length,
             UploadedAt = DateTime.UtcNow,
+            UploadedByStaffId = uploadedByStaffId,
         };
-        _materials.Add(material);
-        return Ok(material);
+        _dbContext.LearningMaterials.Add(material);
+        await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
+        material.Allocation = allocation;
+        return Ok(ToMaterialRecord(material));
     }
 
     [HttpGet("materials/{materialId}/download")]
@@ -115,7 +125,9 @@ public class LearningController : ControllerBase
             return Unauthorized();
         }
 
-        var material = _materials.FirstOrDefault(m => m.Id == materialId);
+        var material = await _dbContext.LearningMaterials
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.LearningMaterialId == materialId, cancellationToken);
         if (material is null) return NotFound();
 
         var allocation = await _dbContext.CourseAllocations
@@ -172,7 +184,7 @@ public class LearningController : ControllerBase
         Stream content;
         try
         {
-            content = await _fileStorage.OpenReadAsync(material.Path, cancellationToken);
+            content = await _fileStorage.OpenReadAsync(material.StorageKey, cancellationToken);
         }
         catch (FileNotFoundException)
         {
@@ -188,19 +200,25 @@ public class LearningController : ControllerBase
             string.IsNullOrWhiteSpace(material.ContentType)
                 ? "application/octet-stream"
                 : material.ContentType,
-            string.IsNullOrWhiteSpace(material.FileName)
-                ? Path.GetFileName(material.Path)
-                : material.FileName,
+            string.IsNullOrWhiteSpace(material.OriginalFileName)
+                ? Path.GetFileName(material.StorageKey)
+                : material.OriginalFileName,
             enableRangeProcessing: true);
     }
 
     [HttpDelete("materials/{id}")]
-    public IActionResult DeleteMaterial(int id)
+    public async Task<IActionResult> DeleteMaterial(int id, CancellationToken cancellationToken)
     {
-        var material = _materials.FirstOrDefault(m => m.Id == id);
+        var material = await _dbContext.LearningMaterials
+            .Include(m => m.Allocation)
+                .ThenInclude(a => a.Course)
+            .FirstOrDefaultAsync(m => m.LearningMaterialId == id, cancellationToken);
         if (material is null) return NotFound();
-        _materials.Remove(material);
-        return Ok(material);
+
+        var dto = ToMaterialRecord(material);
+        _dbContext.LearningMaterials.Remove(material);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(dto);
     }
 
     // --- Assignments ---
@@ -247,6 +265,7 @@ public class LearningController : ControllerBase
             Instructions = request.Instructions?.Trim() ?? "",
             DueDate = dueDate,
             MaxMarks = request.MaxMarks,
+            AllowLateSubmissions = request.AllowLateSubmissions,
         };
         _dbContext.Assignments.Add(assignment);
 
@@ -259,7 +278,6 @@ public class LearningController : ControllerBase
             return StatusCode(status, message);
         }
 
-        _allowLateByAssignmentId[assignment.AssignmentId] = request.AllowLateSubmissions;
         assignment.Allocation = allocation;
         return Ok(ToAssignmentRecord(assignment));
     }
@@ -283,6 +301,7 @@ public class LearningController : ControllerBase
             assignment.DueDate = dueDate;
         }
         assignment.MaxMarks = request.MaxMarks;
+        assignment.AllowLateSubmissions = request.AllowLateSubmissions;
 
         try
         {
@@ -293,7 +312,6 @@ public class LearningController : ControllerBase
             return StatusCode(status, message);
         }
 
-        _allowLateByAssignmentId[assignment.AssignmentId] = request.AllowLateSubmissions;
         return Ok(ToAssignmentRecord(assignment));
     }
 
@@ -308,10 +326,6 @@ public class LearningController : ControllerBase
         var related = await _dbContext.Submissions
             .Where(s => s.AssignmentId == id)
             .ToListAsync();
-        foreach (var submission in related)
-        {
-            _fileNameBySubmissionId.Remove(submission.SubmissionId);
-        }
         _dbContext.Submissions.RemoveRange(related);
         _dbContext.Assignments.Remove(assignment);
 
@@ -324,7 +338,6 @@ public class LearningController : ControllerBase
             return StatusCode(status, message);
         }
 
-        _allowLateByAssignmentId.Remove(id);
         return Ok(dto);
     }
 
@@ -385,7 +398,7 @@ public class LearningController : ControllerBase
         if (due.Kind == DateTimeKind.Unspecified) due = DateTime.SpecifyKind(due, DateTimeKind.Utc);
         var now = DateTime.UtcNow;
         var isLate = now > due.ToUniversalTime();
-        var allowLate = _allowLateByAssignmentId.GetValueOrDefault(assignment.AssignmentId);
+        var allowLate = assignment.AllowLateSubmissions;
         if (isLate && !allowLate)
         {
             return BadRequest(
@@ -436,7 +449,6 @@ public class LearningController : ControllerBase
             return StatusCode(status, message);
         }
 
-        _fileNameBySubmissionId[existing.SubmissionId] = saved.OriginalName!;
         existing.Student = student;
         return Ok(ToSubmissionRecord(existing));
     }
@@ -618,6 +630,8 @@ public class LearningController : ControllerBase
         {
             Path = stored.StorageKey,
             OriginalName = stored.OriginalFileName,
+            ContentType = stored.ContentType,
+            Length = stored.Length,
         };
     }
 
@@ -661,8 +675,9 @@ public class LearningController : ControllerBase
             StudentId = number,
             StudentName = submission.Student.Admission?.ApplicantName ?? number,
             FileUrl = submission.FileUrl,
-            FileName = _fileNameBySubmissionId.GetValueOrDefault(submission.SubmissionId)
-                ?? Path.GetFileName(submission.FileUrl),
+            FileName = string.IsNullOrWhiteSpace(submission.OriginalFileName)
+                ? Path.GetFileName(submission.FileUrl)
+                : submission.OriginalFileName,
             SubmittedAt = submission.SubmittedAt,
             IsLate = submission.IsLate,
             MarksAwarded = submission.MarksAwarded,
@@ -684,7 +699,7 @@ public class LearningController : ControllerBase
             Instructions = assignment.Instructions ?? "",
             DueDate = FormatDueDate(assignment.DueDate),
             MaxMarks = assignment.MaxMarks,
-            AllowLateSubmissions = _allowLateByAssignmentId.GetValueOrDefault(assignment.AssignmentId),
+            AllowLateSubmissions = assignment.AllowLateSubmissions,
         };
     }
 
@@ -782,10 +797,29 @@ public class LearningController : ControllerBase
             .ToList();
     }
 
+    private static LearningMaterialRecord ToMaterialRecord(LearningMaterial material)
+    {
+        var course = material.Allocation.Course;
+        return new LearningMaterialRecord
+        {
+            Id = material.LearningMaterialId,
+            AllocationId = material.AllocationId,
+            CourseCode = course.CourseCode,
+            CourseName = course.CourseName,
+            Title = material.Title,
+            Path = material.StorageKey,
+            FileName = material.OriginalFileName,
+            ContentType = material.ContentType,
+            UploadedAt = material.UploadedAt,
+        };
+    }
+
     private class SavedFile
     {
         public string? Path { get; set; }
         public string? OriginalName { get; set; }
+        public string? ContentType { get; set; }
+        public long Length { get; set; }
         public string? Error { get; set; }
     }
 }

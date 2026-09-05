@@ -17,6 +17,8 @@ public partial class Assignment
 
     public decimal MaxMarks { get; set; }
 
+    public bool AllowLateSubmissions { get; set; }
+
     public virtual CourseAllocation Allocation { get; set; } = null!;
 
     public virtual ICollection<Submission> Submissions { get; set; } = new List<Submission>();

@@ -21,6 +21,8 @@ public partial class CourseAllocation
 
     public virtual Course Course { get; set; } = null!;
 
+    public virtual ICollection<LearningMaterial> LearningMaterials { get; set; } = new List<LearningMaterial>();
+
     public virtual ICollection<Registration> Registrations { get; set; } = new List<Registration>();
 
     public virtual Semester Semester { get; set; } = null!;
