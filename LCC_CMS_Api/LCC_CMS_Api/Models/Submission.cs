@@ -13,6 +13,10 @@ public partial class Submission
 
     public string FileUrl { get; set; } = null!;
 
+    public string OriginalFileName { get; set; } = null!;
+
+    public string? ContentType { get; set; }
+
     public DateTime SubmittedAt { get; set; }
 
     public bool IsLate { get; set; }

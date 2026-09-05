@@ -42,13 +42,16 @@ public class LearningController : ControllerBase
 
     private readonly LccCmsDbContext _dbContext;
     private readonly IFileStorage _fileStorage;
+    private readonly ICurrentUser _currentUser;
 
     public LearningController(
         LccCmsDbContext dbContext,
-        IFileStorage fileStorage)
+        IFileStorage fileStorage,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _fileStorage = fileStorage;
+        _currentUser = currentUser;
     }
 
     // --- Materials ---
@@ -313,6 +316,8 @@ public class LearningController : ControllerBase
                 AssignmentId = id,
                 StudentId = student.StudentId,
                 FileUrl = saved.Path!,
+                OriginalFileName = saved.OriginalName!,
+                ContentType = file?.ContentType,
                 SubmittedAt = now,
                 IsLate = isLate,
                 MarksAwarded = null,
@@ -323,6 +328,8 @@ public class LearningController : ControllerBase
         else
         {
             existing.FileUrl = saved.Path!;
+            existing.OriginalFileName = saved.OriginalName!;
+            existing.ContentType = file?.ContentType;
             existing.SubmittedAt = now;
             existing.IsLate = isLate;
             existing.MarksAwarded = null;
@@ -341,6 +348,84 @@ public class LearningController : ControllerBase
         _fileNameBySubmissionId[existing.SubmissionId] = saved.OriginalName!;
         existing.Student = student;
         return Ok(ToSubmissionRecord(existing));
+    }
+
+    [HttpGet("submissions/{submissionId}/download")]
+    public async Task<IActionResult> DownloadSubmission(
+        int submissionId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int)
+        {
+            return Unauthorized();
+        }
+
+        var submission = await _dbContext.Submissions
+            .AsNoTracking()
+            .Include(s => s.Student)
+            .Include(s => s.Assignment)
+                .ThenInclude(a => a.Allocation)
+                    .ThenInclude(a => a.Staff)
+                        .ThenInclude(st => st.Department)
+            .FirstOrDefaultAsync(s => s.SubmissionId == submissionId, cancellationToken);
+        if (submission is null) return NotFound();
+
+        var role = RoleNames.ToPolicyRole(_currentUser.Role);
+        var allowed = role.Equals(RoleNames.RegistrarAdmin, StringComparison.OrdinalIgnoreCase);
+
+        if (role.Equals(RoleNames.Student, StringComparison.OrdinalIgnoreCase))
+        {
+            allowed = _currentUser.StudentId is int studentId
+                && submission.StudentId == studentId;
+        }
+        else if (role.Equals(RoleNames.Lecturer, StringComparison.OrdinalIgnoreCase))
+        {
+            allowed = _currentUser.StaffId is int staffId
+                && submission.Assignment.Allocation.StaffId == staffId;
+        }
+        else if (role.Equals(RoleNames.HoD, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_currentUser.StaffId is int staffId)
+            {
+                var departmentId = await _dbContext.Staff
+                    .AsNoTracking()
+                    .Where(st => st.StaffId == staffId)
+                    .Select(st => (int?)st.DepartmentId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                allowed = departmentId is int currentDepartmentId
+                    && submission.Assignment.Allocation.Staff.DepartmentId == currentDepartmentId;
+            }
+        }
+
+        if (!allowed) return Forbid();
+
+        Stream content;
+        try
+        {
+            content = await _fileStorage.OpenReadAsync(
+                submission.FileUrl,
+                cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound();
+        }
+
+        return File(
+            content,
+            string.IsNullOrWhiteSpace(submission.ContentType)
+                ? "application/octet-stream"
+                : submission.ContentType,
+            string.IsNullOrWhiteSpace(submission.OriginalFileName)
+                ? Path.GetFileName(submission.FileUrl)
+                : submission.OriginalFileName,
+            enableRangeProcessing: true);
     }
 
     [HttpPut("submissions/{id}/grade")]

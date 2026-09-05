@@ -901,6 +901,12 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.FileUrl)
                 .HasMaxLength(500)
                 .HasColumnName("file_url");
+            entity.Property(e => e.OriginalFileName)
+                .HasMaxLength(255)
+                .HasColumnName("original_file_name");
+            entity.Property(e => e.ContentType)
+                .HasMaxLength(255)
+                .HasColumnName("content_type");
             entity.Property(e => e.IsLate).HasColumnName("is_late");
             entity.Property(e => e.MarksAwarded)
                 .HasColumnType("decimal(5, 2)")
