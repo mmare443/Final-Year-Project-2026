@@ -154,17 +154,30 @@ public class MessagesController : ControllerBase
     }
 
     [HttpPut("{id}/delete")]
-    public async Task<ActionResult<MessageRecord>> SoftDelete(int id)
+    public async Task<ActionResult<MessageRecord>> SoftDelete(
+        int id,
+        CancellationToken cancellationToken)
     {
-        var message = await MessageGraph().FirstOrDefaultAsync(m => m.MessageId == id);
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int currentUserId)
+        {
+            return Unauthorized();
+        }
+
+        var message = await MessageGraph()
+            .FirstOrDefaultAsync(m => m.MessageId == id, cancellationToken);
         if (message is null) return NotFound();
         if (message.IsDeleted) return NotFound();
+        if (message.SenderId != currentUserId && message.RecipientId != currentUserId)
+        {
+            return Forbid();
+        }
 
         message.IsDeleted = true;
 
         try
         {
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var messageText))
         {

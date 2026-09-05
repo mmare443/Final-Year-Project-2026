@@ -54,6 +54,7 @@ public sealed class CurrentUserService : ICurrentUser
         _resolved = true;
         var http = _httpContextAccessor.HttpContext;
         var authEnabled = _configuration.GetValue("AuthEnabled", false);
+        var entraTokenPresent = HasBearerToken(http);
 
         var oid = ReadObjectId(http?.User);
         if (!string.IsNullOrWhiteSpace(oid))
@@ -74,7 +75,10 @@ public sealed class CurrentUserService : ICurrentUser
                 http?.User.Identity?.IsAuthenticated == true);
         }
 
-        if (_snapshot is null && !authEnabled && TryReadLabUserId(http, out var labUserId))
+        if (_snapshot is null
+            && !authEnabled
+            && !entraTokenPresent
+            && TryReadLabUserId(http, out var labUserId))
         {
             _snapshot = await LoadByUserIdAsync(labUserId, cancellationToken);
             if (_snapshot is null)
@@ -102,6 +106,22 @@ public sealed class CurrentUserService : ICurrentUser
         }
 
         return _snapshot is not null;
+    }
+
+    private static bool HasBearerToken(HttpContext? http)
+    {
+        if (http is null) return false;
+        if (http.User.Identity?.IsAuthenticated == true) return true;
+
+        var authorization = http.Request.Headers.Authorization.ToString();
+        if (authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            && authorization.Length > "Bearer ".Length)
+        {
+            return true;
+        }
+
+        return http.Request.Path.StartsWithSegments("/hubs/messages")
+            && !string.IsNullOrWhiteSpace(http.Request.Query["access_token"].ToString());
     }
 
     private static string? ReadObjectId(ClaimsPrincipal? principal)

@@ -207,14 +207,31 @@ public class RegistrationsController : ControllerBase
     // StartDate/EndDate is a straightforward follow-up once this needs to
     // be date-accurate rather than flag-accurate.
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Drop(int id)
+    public async Task<IActionResult> Drop(int id, CancellationToken cancellationToken)
     {
-        var registration = await LoadForUpdateAsync(id);
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int)
+        {
+            return Unauthorized();
+        }
+
+        if (_currentUser.StudentId is not int currentStudentId)
+        {
+            return Forbid();
+        }
+
+        var registration = await LoadForUpdateAsync(id, cancellationToken);
         if (registration is null) return NotFound();
+        if (registration.StudentId != currentStudentId)
+        {
+            return Forbid();
+        }
 
         var semester = await _dbContext.Semesters
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.SemesterId == registration.Allocation.SemesterId);
+            .FirstOrDefaultAsync(
+                s => s.SemesterId == registration.Allocation.SemesterId,
+                cancellationToken);
         if (semester is null || !semester.IsActive)
         {
             return BadRequest("Add/drop is only permitted within the active semester's registration window.");
@@ -224,7 +241,7 @@ public class RegistrationsController : ControllerBase
 
         try
         {
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (TryDescribePersistenceFailure(ex, out var status, out var message))
         {
@@ -329,14 +346,16 @@ public class RegistrationsController : ControllerBase
         return $"Prerequisite {prereqLabel} is not met. A published passing result is required before you can register.";
     }
 
-    private async Task<Registration?> LoadForUpdateAsync(int id)
+    private async Task<Registration?> LoadForUpdateAsync(
+        int id,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.Registrations
             .Include(r => r.Student)
                 .ThenInclude(s => s.Admission)
             .Include(r => r.Allocation)
                 .ThenInclude(a => a.Course)
-            .FirstOrDefaultAsync(r => r.RegistrationId == id);
+            .FirstOrDefaultAsync(r => r.RegistrationId == id, cancellationToken);
     }
 
     private static void SyncMemory(RegistrationRecord record)
