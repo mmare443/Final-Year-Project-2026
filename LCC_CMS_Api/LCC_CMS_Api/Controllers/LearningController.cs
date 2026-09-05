@@ -1,5 +1,6 @@
 using System.Globalization;
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -39,13 +40,15 @@ public class LearningController : ControllerBase
     private static readonly Dictionary<int, string> _fileNameBySubmissionId = new();
     private static int _nextMaterialId = 1;
 
-    private readonly IWebHostEnvironment _env;
     private readonly LccCmsDbContext _dbContext;
+    private readonly IFileStorage _fileStorage;
 
-    public LearningController(IWebHostEnvironment env, LccCmsDbContext dbContext)
+    public LearningController(
+        LccCmsDbContext dbContext,
+        IFileStorage fileStorage)
     {
-        _env = env;
         _dbContext = dbContext;
+        _fileStorage = fileStorage;
     }
 
     // --- Materials ---
@@ -79,7 +82,7 @@ public class LearningController : ControllerBase
         if (allocation is null) return BadRequest("Course allocation not found.");
         if (string.IsNullOrWhiteSpace(title)) return BadRequest("Title is required.");
 
-        var saved = SaveFile(file, "materials");
+        var saved = await SaveFileAsync(file, "materials", HttpContext.RequestAborted);
         if (saved.Error is not null) return BadRequest(saved.Error);
 
         var material = new LearningMaterialRecord
@@ -295,7 +298,7 @@ public class LearningController : ControllerBase
                 "This assignment is past its due date. Submissions are restricted until the lecturer overrides (allow late submissions).");
         }
 
-        var saved = SaveFile(file, "submissions");
+        var saved = await SaveFileAsync(file, "submissions", HttpContext.RequestAborted);
         if (saved.Error is not null) return BadRequest(saved.Error);
 
         var existing = await _dbContext.Submissions
@@ -409,7 +412,10 @@ public class LearningController : ControllerBase
         });
     }
 
-    private SavedFile SaveFile(IFormFile? file, string subfolder)
+    private async Task<SavedFile> SaveFileAsync(
+        IFormFile? file,
+        string subfolder,
+        CancellationToken cancellationToken)
     {
         if (file is null) return new SavedFile { Error = "No file received." };
 
@@ -423,19 +429,19 @@ public class LearningController : ControllerBase
             return new SavedFile { Error = "File is too large. Maximum size is 10 MB." };
         }
 
-        var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "learning", subfolder);
-        Directory.CreateDirectory(uploadsFolder);
-        var safeFileName = $"{Guid.NewGuid()}{ext}";
-        var fullPath = Path.Combine(uploadsFolder, safeFileName);
-        using (var stream = new FileStream(fullPath, FileMode.Create))
-        {
-            file.CopyTo(stream);
-        }
+        await using var input = file.OpenReadStream();
+        var stored = await _fileStorage.SaveAsync(
+            input,
+            subfolder == "materials" ? "learning-materials" : "learning-submissions",
+            ext,
+            file.FileName,
+            file.ContentType,
+            cancellationToken);
 
         return new SavedFile
         {
-            Path = $"/uploads/learning/{subfolder}/{safeFileName}",
-            OriginalName = file.FileName,
+            Path = stored.StorageKey,
+            OriginalName = stored.OriginalFileName,
         };
     }
 

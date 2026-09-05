@@ -105,6 +105,7 @@ builder.Services.AddDbContext<LccCmsDbContext>(options =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LCC_CMS_Api.Services.ICurrentUser, LCC_CMS_Api.Services.CurrentUserService>();
+builder.Services.AddScoped<LCC_CMS_Api.Services.IFileStorage, LCC_CMS_Api.Services.LocalFileStorage>();
 builder.Services.AddScoped<LCC_CMS_Api.Services.CourseResultService>();
 builder.Services.AddSingleton<LCC_CMS_Api.Services.IEntraUserProvisioner, LCC_CMS_Api.Services.GraphEntraUserProvisioner>();
 

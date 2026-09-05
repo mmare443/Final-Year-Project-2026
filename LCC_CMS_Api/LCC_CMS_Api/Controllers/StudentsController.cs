@@ -29,18 +29,18 @@ public class StudentsController : ControllerBase
     private static readonly string[] AllowedPhotoExtensions = { ".jpg", ".jpeg", ".png" };
     private const long MaxPhotoSizeBytes = 5 * 1024 * 1024; // 5 MB
 
-    private readonly IWebHostEnvironment _env;
     private readonly LccCmsDbContext _dbContext;
     private readonly ICurrentUser _currentUser;
+    private readonly IFileStorage _fileStorage;
 
     public StudentsController(
-        IWebHostEnvironment env,
         LccCmsDbContext dbContext,
-        ICurrentUser currentUser)
+        ICurrentUser currentUser,
+        IFileStorage fileStorage)
     {
-        _env = env;
         _dbContext = dbContext;
         _currentUser = currentUser;
+        _fileStorage = fileStorage;
     }
 
     // --- Self-service (Student role) ---
@@ -78,7 +78,7 @@ public class StudentsController : ControllerBase
         var loaded = await LoadCurrentStudentAsync(cancellationToken);
         if (loaded.Error is not null) return loaded.Error;
 
-        var saved = SavePhoto(photo);
+        var saved = await SavePhotoAsync(photo, cancellationToken);
         if (saved.Error is not null) return BadRequest(saved.Error);
 
         UpsertProfilePhoto(loaded.Student!, saved.Path!);
@@ -172,7 +172,9 @@ public class StudentsController : ControllerBase
         }
     }
 
-    private SavedPhoto SavePhoto(IFormFile? photo)
+    private async Task<SavedPhoto> SavePhotoAsync(
+        IFormFile? photo,
+        CancellationToken cancellationToken)
     {
         if (photo is null)
         {
@@ -189,18 +191,16 @@ public class StudentsController : ControllerBase
             return new SavedPhoto { Error = "Photo is too large. Maximum size is 5 MB." };
         }
 
-        var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "students");
-        Directory.CreateDirectory(uploadsFolder);
+        await using var input = photo.OpenReadStream();
+        var stored = await _fileStorage.SaveAsync(
+            input,
+            "students",
+            ext,
+            photo.FileName,
+            photo.ContentType,
+            cancellationToken);
 
-        var safeFileName = $"{Guid.NewGuid()}{ext}";
-        var fullPath = Path.Combine(uploadsFolder, safeFileName);
-
-        using (var stream = new FileStream(fullPath, FileMode.Create))
-        {
-            photo.CopyTo(stream);
-        }
-
-        return new SavedPhoto { Path = $"/uploads/students/{safeFileName}" };
+        return new SavedPhoto { Path = stored.StorageKey };
     }
 
     private static void UpsertProfilePhoto(Student student, string fileUrl)

@@ -35,22 +35,22 @@ public class AdmissionsController : ControllerBase
     private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB per file
 
-    private readonly IWebHostEnvironment _env;
     private readonly LccCmsDbContext _dbContext;
     private readonly ICurrentUser _currentUser;
+    private readonly IFileStorage _fileStorage;
     private readonly IEntraUserProvisioner _entraUsers;
     private readonly ILogger<AdmissionsController> _logger;
 
     public AdmissionsController(
-        IWebHostEnvironment env,
         LccCmsDbContext dbContext,
         ICurrentUser currentUser,
+        IFileStorage fileStorage,
         IEntraUserProvisioner entraUsers,
         ILogger<AdmissionsController> logger)
     {
-        _env = env;
         _dbContext = dbContext;
         _currentUser = currentUser;
+        _fileStorage = fileStorage;
         _entraUsers = entraUsers;
         _logger = logger;
     }
@@ -73,7 +73,9 @@ public class AdmissionsController : ControllerBase
     // as FormData, not JSON.stringify, to match.
     [HttpPost]
     [RequestSizeLimit(8 * MaxFileSizeBytes)] // headroom for up to 8 files
-    public async Task<ActionResult<AdmissionApplication>> Submit([FromForm] AdmissionApplicationRequest request)
+    public async Task<ActionResult<AdmissionApplication>> Submit(
+        [FromForm] AdmissionApplicationRequest request,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.FullName))
         {
@@ -141,24 +143,20 @@ public class AdmissionsController : ControllerBase
                 return BadRequest($"{type}: file is too large. Maximum size is 5 MB.");
             }
 
-            var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "admissions");
-            Directory.CreateDirectory(uploadsFolder);
-
-            // Guid-prefixed filename — never trust the original filename
-            // for storage (path traversal, collisions, unsafe characters).
-            var safeFileName = $"{Guid.NewGuid()}{ext}";
-            var fullPath = Path.Combine(uploadsFolder, safeFileName);
-
-            using (var stream = new FileStream(fullPath, FileMode.Create))
-            {
-                file.CopyTo(stream);
-            }
+            await using var input = file.OpenReadStream();
+            var stored = await _fileStorage.SaveAsync(
+                input,
+                "admissions",
+                ext,
+                file.FileName,
+                file.ContentType,
+                cancellationToken);
 
             documents.Add(new AdmissionDocument
             {
                 Type = type,
-                Path = $"/uploads/admissions/{safeFileName}",
-                FileName = file.FileName, // original name, for display only
+                Path = stored.StorageKey,
+                FileName = stored.OriginalFileName,
             });
         }
 
