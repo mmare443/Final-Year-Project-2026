@@ -17,6 +17,8 @@ public partial class LccCmsDbContext : DbContext
 
     public virtual DbSet<AcademicYear> AcademicYears { get; set; }
 
+    public virtual DbSet<AdmissionDocument> AdmissionDocuments { get; set; }
+
     public virtual DbSet<AccommodationRecord> AccommodationRecords { get; set; }
 
     public virtual DbSet<Admission> Admissions { get; set; }
@@ -186,6 +188,43 @@ public partial class LccCmsDbContext : DbContext
             entity.HasOne(d => d.Student).WithOne(p => p.Admission)
                 .HasForeignKey<Admission>(d => d.StudentId)
                 .HasConstraintName("FK__admission__stude__7A672E12");
+        });
+
+        modelBuilder.Entity<AdmissionDocument>(entity =>
+        {
+            entity.HasKey(e => e.AdmissionDocumentId);
+
+            entity.ToTable("admission_documents");
+
+            entity.HasIndex(e => e.AdmissionId, "IX_admission_documents_admission");
+
+            entity.Property(e => e.AdmissionDocumentId)
+                .HasColumnName("admission_document_id");
+            entity.Property(e => e.AdmissionId)
+                .HasColumnName("admission_id");
+            entity.Property(e => e.DocumentType)
+                .HasMaxLength(100)
+                .HasColumnName("document_type");
+            entity.Property(e => e.StorageKey)
+                .HasMaxLength(500)
+                .HasColumnName("storage_key");
+            entity.Property(e => e.OriginalFileName)
+                .HasMaxLength(255)
+                .HasColumnName("original_file_name");
+            entity.Property(e => e.ContentType)
+                .HasMaxLength(255)
+                .HasColumnName("content_type");
+            entity.Property(e => e.FileSize)
+                .HasColumnName("file_size");
+            entity.Property(e => e.UploadedAt)
+                .HasDefaultValueSql("(sysutcdatetime())")
+                .HasColumnName("uploaded_at");
+
+            entity.HasOne(d => d.Admission)
+                .WithMany(p => p.AdmissionDocuments)
+                .HasForeignKey(d => d.AdmissionId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__admission_documents__admission");
         });
 
         modelBuilder.Entity<Assessment>(entity =>

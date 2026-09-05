@@ -55,6 +55,22 @@ public sealed class LocalFileStorage : IFileStorage
         return Task.CompletedTask;
     }
 
+    public Task<Stream> OpenReadAsync(
+        string storageKey,
+        CancellationToken cancellationToken = default)
+    {
+        var relativePath = NormalizeStorageKey(storageKey);
+        var fullPath = GetFullPath(relativePath);
+        Stream stream = new FileStream(
+            fullPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 64 * 1024,
+            useAsync: true);
+        return Task.FromResult(stream);
+    }
+
     private string GetFullPath(string relativePath)
     {
         var fullPath = Path.GetFullPath(Path.Combine(_rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));

@@ -15,7 +15,8 @@ namespace LCC_CMS_Api.Controllers;
 /// <c>admissions.student_id</c>. Graph failure leaves the admission Applied.
 /// SQL failure after Graph deletes the Entra user. Welcome email is later
 /// (FR-1.6). Reject still only updates status/date/reviewer.
-/// Uploaded files remain on disk; document table rows wait on a later pass.
+/// Uploaded files use IFileStorage; admission document metadata is persisted
+/// in admission_documents.
 ///
 /// [Authorize(Policy = "RegistrarAdminOnly")] goes back on the decision
 /// endpoint once AuthEnabled=true in appsettings.Development.json.
@@ -28,10 +29,6 @@ namespace LCC_CMS_Api.Controllers;
 [Route("api/[controller]")]
 public class AdmissionsController : ControllerBase
 {
-    // Document metadata cannot go on admissions and cannot go in documents
-    // until a student exists. Sidecar is keyed by AdmissionId.
-    private static readonly Dictionary<int, List<AdmissionDocument>> _documentsByAdmissionId = new();
-
     private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB per file
 
@@ -62,10 +59,60 @@ public class AdmissionsController : ControllerBase
             .AsNoTracking()
             .Include(a => a.Programme)
             .Include(a => a.Student)
+            .Include(a => a.AdmissionDocuments)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
         return Ok(admissions.Select(ToApplication));
+    }
+
+    [HttpGet("{admissionId}/documents/{documentId}")]
+    public async Task<IActionResult> DownloadDocument(
+        int admissionId,
+        int documentId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int)
+        {
+            return Unauthorized();
+        }
+
+        var document = await _dbContext.AdmissionDocuments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                d => d.AdmissionDocumentId == documentId
+                    && d.AdmissionId == admissionId,
+                cancellationToken);
+        if (document is null) return NotFound();
+
+        if (!string.Equals(
+                RoleNames.ToPolicyRole(_currentUser.Role),
+                RoleNames.RegistrarAdmin,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
+        Stream content;
+        try
+        {
+            content = await _fileStorage.OpenReadAsync(
+                document.StorageKey,
+                cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
+
+        return File(
+            content,
+            string.IsNullOrWhiteSpace(document.ContentType)
+                ? "application/octet-stream"
+                : document.ContentType,
+            document.OriginalFileName,
+            enableRangeProcessing: true);
     }
 
     // Changed from [FromBody] JSON to [FromForm] multipart — required
@@ -108,7 +155,7 @@ public class AdmissionsController : ControllerBase
             return BadRequest("Programme not found.");
         }
 
-        var documents = new List<AdmissionDocument>();
+        var documents = new List<(string Type, StoredFile File)>();
 
         // (property, document type label, required per Section 8 checklist)
         var fileFields = new (IFormFile? File, string Type, bool Required)[]
@@ -152,12 +199,7 @@ public class AdmissionsController : ControllerBase
                 file.ContentType,
                 cancellationToken);
 
-            documents.Add(new AdmissionDocument
-            {
-                Type = type,
-                Path = stored.StorageKey,
-                FileName = stored.OriginalFileName,
-            });
+            documents.Add((type, stored));
         }
 
         var admission = new Admission
@@ -171,9 +213,21 @@ public class AdmissionsController : ControllerBase
         };
 
         _dbContext.Admissions.Add(admission);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _documentsByAdmissionId[admission.AdmissionId] = documents;
+        var admissionDocuments = documents.Select(document => new Models.AdmissionDocument
+        {
+            AdmissionId = admission.AdmissionId,
+            DocumentType = document.Type,
+            StorageKey = document.File.StorageKey,
+            OriginalFileName = document.File.OriginalFileName,
+            ContentType = document.File.ContentType,
+            FileSize = document.File.Length,
+            UploadedAt = DateTime.UtcNow,
+        }).ToList();
+        _dbContext.AdmissionDocuments.AddRange(admissionDocuments);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        admission.AdmissionDocuments = admissionDocuments;
 
         var created = ToApplication(admission);
         created.Programme = programme.ProgrammeName;
@@ -203,6 +257,7 @@ public class AdmissionsController : ControllerBase
             var admission = await _dbContext.Admissions
                 .Include(a => a.Programme)
                 .Include(a => a.Student)
+                .Include(a => a.AdmissionDocuments)
                 .FirstOrDefaultAsync(a => a.AdmissionId == id, cancellationToken);
             if (admission is null) return NotFound();
 
@@ -416,8 +471,6 @@ public class AdmissionsController : ControllerBase
 
     private AdmissionApplication ToApplication(Admission admission)
     {
-        _documentsByAdmissionId.TryGetValue(admission.AdmissionId, out var documents);
-
         return new AdmissionApplication
         {
             Id = admission.AdmissionId,
@@ -428,7 +481,15 @@ public class AdmissionsController : ControllerBase
             Status = admission.Status,
             StudentId = admission.Student?.StudentNumber,
             SubmittedAt = admission.CreatedAt,
-            Documents = documents ?? new List<AdmissionDocument>(),
+            Documents = admission.AdmissionDocuments
+                .OrderBy(d => d.AdmissionDocumentId)
+                .Select(d => new AdmissionDocument
+                {
+                    Type = d.DocumentType,
+                    Path = d.StorageKey,
+                    FileName = d.OriginalFileName,
+                })
+                .ToList(),
         };
     }
 }

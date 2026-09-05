@@ -31,6 +31,8 @@ public partial class Admission
 
     public virtual Programme Programme { get; set; } = null!;
 
+    public virtual ICollection<AdmissionDocument> AdmissionDocuments { get; set; } = new List<AdmissionDocument>();
+
     public virtual Staff? ReviewedByNavigation { get; set; }
 
     public virtual Student? Student { get; set; }
