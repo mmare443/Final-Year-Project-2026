@@ -506,6 +506,9 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.FileUrl)
                 .HasMaxLength(500)
                 .HasColumnName("file_url");
+            entity.Property(e => e.ContentType)
+                .HasMaxLength(255)
+                .HasColumnName("content_type");
             entity.Property(e => e.StudentId).HasColumnName("student_id");
             entity.Property(e => e.UploadedAt)
                 .HasDefaultValueSql("(sysutcdatetime())")

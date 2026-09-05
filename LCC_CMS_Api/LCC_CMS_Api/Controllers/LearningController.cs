@@ -97,10 +97,101 @@ public class LearningController : ControllerBase
             Title = title.Trim(),
             Path = saved.Path!,
             FileName = saved.OriginalName!,
+            ContentType = file?.ContentType,
             UploadedAt = DateTime.UtcNow,
         };
         _materials.Add(material);
         return Ok(material);
+    }
+
+    [HttpGet("materials/{materialId}/download")]
+    public async Task<IActionResult> DownloadMaterial(
+        int materialId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int)
+        {
+            return Unauthorized();
+        }
+
+        var material = _materials.FirstOrDefault(m => m.Id == materialId);
+        if (material is null) return NotFound();
+
+        var allocation = await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .Include(a => a.Staff)
+            .FirstOrDefaultAsync(
+                a => a.AllocationId == material.AllocationId,
+                cancellationToken);
+        if (allocation is null) return NotFound();
+
+        var role = RoleNames.ToPolicyRole(_currentUser.Role);
+        var allowed = role.Equals(RoleNames.RegistrarAdmin, StringComparison.OrdinalIgnoreCase);
+
+        if (role.Equals(RoleNames.Student, StringComparison.OrdinalIgnoreCase))
+        {
+            allowed = _currentUser.StudentId is int studentId
+                && await _dbContext.Registrations
+                    .AsNoTracking()
+                    .AnyAsync(
+                        r => r.StudentId == studentId
+                            && r.AllocationId == material.AllocationId
+                            && r.Status == "Approved",
+                        cancellationToken);
+        }
+        else if (role.Equals(RoleNames.Lecturer, StringComparison.OrdinalIgnoreCase))
+        {
+            allowed = _currentUser.StaffId is int staffId
+                && allocation.StaffId == staffId;
+        }
+        else if (role.Equals(RoleNames.HoD, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_currentUser.StaffId is int staffId)
+            {
+                var departmentId = await _dbContext.Staff
+                    .AsNoTracking()
+                    .Where(s => s.StaffId == staffId)
+                    .Select(s => (int?)s.DepartmentId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var lecturerDepartmentId = await _dbContext.Staff
+                    .AsNoTracking()
+                    .Where(s => s.StaffId == allocation.StaffId)
+                    .Select(s => (int?)s.DepartmentId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                allowed = departmentId is int currentDepartmentId
+                    && lecturerDepartmentId is int allocationDepartmentId
+                    && currentDepartmentId == allocationDepartmentId;
+            }
+        }
+
+        if (!allowed) return Forbid();
+
+        Stream content;
+        try
+        {
+            content = await _fileStorage.OpenReadAsync(material.Path, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound();
+        }
+
+        return File(
+            content,
+            string.IsNullOrWhiteSpace(material.ContentType)
+                ? "application/octet-stream"
+                : material.ContentType,
+            string.IsNullOrWhiteSpace(material.FileName)
+                ? Path.GetFileName(material.Path)
+                : material.FileName,
+            enableRangeProcessing: true);
     }
 
     [HttpDelete("materials/{id}")]
@@ -708,6 +799,7 @@ public class LearningMaterialRecord
     public string Title { get; set; } = "";
     public string Path { get; set; } = "";
     public string FileName { get; set; } = "";
+    public string? ContentType { get; set; }
     public DateTime UploadedAt { get; set; }
 }
 

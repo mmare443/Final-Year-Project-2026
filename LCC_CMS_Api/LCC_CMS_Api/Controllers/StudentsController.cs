@@ -81,9 +81,51 @@ public class StudentsController : ControllerBase
         var saved = await SavePhotoAsync(photo, cancellationToken);
         if (saved.Error is not null) return BadRequest(saved.Error);
 
-        UpsertProfilePhoto(loaded.Student!, saved.Path!);
+        UpsertProfilePhoto(loaded.Student!, saved.Path!, photo?.ContentType);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return Ok(ToProfile(loaded.Student!));
+    }
+
+    [HttpGet("me/photo")]
+    public async Task<IActionResult> DownloadMyPhoto(CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int)
+        {
+            return Unauthorized();
+        }
+
+        if (_currentUser.StudentId is not int studentId)
+        {
+            return NotFound();
+        }
+
+        return await DownloadPhotoForStudentAsync(studentId, cancellationToken);
+    }
+
+    [HttpGet("{studentNumber}/photo")]
+    public async Task<IActionResult> DownloadPhoto(
+        string studentNumber,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int)
+        {
+            return Unauthorized();
+        }
+
+        var student = await _dbContext.Students
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.StudentNumber == studentNumber, cancellationToken);
+        if (student is null) return NotFound();
+
+        var role = RoleNames.ToPolicyRole(_currentUser.Role);
+        var allowed = role.Equals(RoleNames.RegistrarAdmin, StringComparison.OrdinalIgnoreCase)
+            || (role.Equals(RoleNames.Student, StringComparison.OrdinalIgnoreCase)
+                && _currentUser.StudentId == student.StudentId);
+        if (!allowed) return Forbid();
+
+        return await DownloadPhotoForStudentAsync(student.StudentId, cancellationToken);
     }
 
     // --- Registrar/Admin oversight ---
@@ -203,7 +245,10 @@ public class StudentsController : ControllerBase
         return new SavedPhoto { Path = stored.StorageKey };
     }
 
-    private static void UpsertProfilePhoto(Student student, string fileUrl)
+    private static void UpsertProfilePhoto(
+        Student student,
+        string fileUrl,
+        string? contentType)
     {
         var existing = student.Documents.FirstOrDefault(d => d.DocumentType == ProfilePhotoType);
         if (existing is null)
@@ -213,14 +258,50 @@ public class StudentsController : ControllerBase
                 StudentId = student.StudentId,
                 DocumentType = ProfilePhotoType,
                 FileUrl = fileUrl,
+                ContentType = contentType,
                 UploadedAt = DateTime.UtcNow,
             });
         }
         else
         {
             existing.FileUrl = fileUrl;
+            existing.ContentType = contentType;
             existing.UploadedAt = DateTime.UtcNow;
         }
+    }
+
+    private async Task<IActionResult> DownloadPhotoForStudentAsync(
+        int studentId,
+        CancellationToken cancellationToken)
+    {
+        var document = await _dbContext.Documents
+            .AsNoTracking()
+            .Where(d => d.StudentId == studentId && d.DocumentType == ProfilePhotoType)
+            .OrderByDescending(d => d.UploadedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (document is null) return NotFound();
+
+        Stream content;
+        try
+        {
+            content = await _fileStorage.OpenReadAsync(document.FileUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound();
+        }
+
+        return File(
+            content,
+            string.IsNullOrWhiteSpace(document.ContentType)
+                ? "application/octet-stream"
+                : document.ContentType,
+            Path.GetFileName(document.FileUrl),
+            enableRangeProcessing: true);
     }
 
     private static StudentProfile ToProfile(Student student)

@@ -13,6 +13,8 @@ public partial class Document
 
     public string FileUrl { get; set; } = null!;
 
+    public string? ContentType { get; set; }
+
     public DateTime UploadedAt { get; set; }
 
     public virtual Student Student { get; set; } = null!;
