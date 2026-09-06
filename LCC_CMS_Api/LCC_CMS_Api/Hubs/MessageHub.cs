@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace LCC_CMS_Api.Hubs;
@@ -9,6 +10,7 @@ namespace LCC_CMS_Api.Hubs;
 /// ICurrentUser (lab: X-User-Id header or hub query). Subscribe cannot
 /// choose another user's group. REST remains the source of truth.
 /// </summary>
+[Authorize]
 public class MessageHub : Hub
 {
     private readonly ICurrentUser _currentUser;

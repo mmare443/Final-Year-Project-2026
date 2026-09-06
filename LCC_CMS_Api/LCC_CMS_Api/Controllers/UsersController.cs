@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,7 @@ namespace LCC_CMS_Api.Controllers;
 /// Not a full profile API. Auth scoping is a later phase.
 /// </summary>
 [ApiController]
+[Authorize(Policy = "RegistrarAdminOnly")]
 [Route("api/users")]
 public class UsersController : ControllerBase
 {

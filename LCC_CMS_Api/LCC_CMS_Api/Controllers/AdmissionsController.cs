@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -52,6 +53,7 @@ public class AdmissionsController : ControllerBase
         _logger = logger;
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AdmissionApplication>>> GetAll()
     {
@@ -66,6 +68,7 @@ public class AdmissionsController : ControllerBase
         return Ok(admissions.Select(ToApplication));
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpGet("{admissionId}/documents/{documentId}")]
     public async Task<IActionResult> DownloadDocument(
         int admissionId,
@@ -234,7 +237,7 @@ public class AdmissionsController : ControllerBase
         return CreatedAtAction(nameof(GetAll), new { id = admission.AdmissionId }, created);
     }
 
-    // [Authorize(Policy = "RegistrarAdminOnly")] — re-enable once AuthEnabled=true
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPatch("{id}/decision")]
     public async Task<ActionResult<AdmissionApplication>> Decide(
         int id,

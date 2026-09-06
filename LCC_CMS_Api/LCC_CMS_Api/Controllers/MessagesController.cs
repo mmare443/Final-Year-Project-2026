@@ -1,6 +1,7 @@
 using LCC_CMS_Api.Hubs;
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.SqlClient;
@@ -15,6 +16,7 @@ namespace LCC_CMS_Api.Controllers;
 /// Soft-delete sets IsDeleted.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/messages")]
 public class MessagesController : ControllerBase
 {

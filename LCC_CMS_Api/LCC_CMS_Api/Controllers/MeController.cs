@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LCC_CMS_Api.Controllers;
@@ -22,6 +23,7 @@ public class MeController : ControllerBase
         _logger = logger;
     }
 
+    [Authorize]
     [HttpGet]
     public async Task<ActionResult<MeRecord>> Get(CancellationToken cancellationToken)
     {

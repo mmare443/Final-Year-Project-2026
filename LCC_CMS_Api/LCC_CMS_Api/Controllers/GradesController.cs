@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,7 @@ public class GradesController : ControllerBase
         _currentUser = currentUser;
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpGet("{id}/grades")]
     public async Task<ActionResult<IEnumerable<GradeRecord>>> GetGrades(int id)
     {
@@ -51,6 +53,7 @@ public class GradesController : ControllerBase
         return Ok(await LoadRosterGradesAsync(assessment));
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPut("{id}/grades")]
     public async Task<ActionResult<IEnumerable<GradeRecord>>> SaveGrades(int id, [FromBody] SaveGradesRequest request)
     {
@@ -151,6 +154,7 @@ public class GradesController : ControllerBase
         return Ok(await LoadRosterGradesAsync(assessment));
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("{id}/publish")]
     public async Task<ActionResult<IEnumerable<GradeRecord>>> PublishGrades(int id)
     {
@@ -179,6 +183,7 @@ public class GradesController : ControllerBase
         return Ok(await LoadRosterGradesAsync(assessment));
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("~/api/grades/{id}/override")]
     public async Task<ActionResult<GradeRecord>> OverrideGrade(
         int id,

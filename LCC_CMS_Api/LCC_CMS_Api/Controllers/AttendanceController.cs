@@ -1,5 +1,7 @@
 using System.Globalization;
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -31,10 +33,12 @@ public class AttendanceController : ControllerBase
     private static readonly string[] AllowedStatuses = { "Present", "Absent", "Late", "Excused" };
 
     private readonly LccCmsDbContext _dbContext;
+    private readonly ICurrentUser _currentUser;
 
-    public AttendanceController(LccCmsDbContext dbContext)
+    public AttendanceController(LccCmsDbContext dbContext, ICurrentUser currentUser)
     {
         _dbContext = dbContext;
+        _currentUser = currentUser;
     }
 
     [HttpGet("sessions")]
@@ -75,6 +79,7 @@ public class AttendanceController : ControllerBase
         return Ok(await RosterFor(allocationId));
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPost("sessions")]
     public async Task<ActionResult<AttendanceSessionRecord>> OpenSession([FromBody] OpenSessionRequest request)
     {
@@ -126,6 +131,7 @@ public class AttendanceController : ControllerBase
         });
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPut("sessions/{id}/marks")]
     public async Task<ActionResult<AttendanceSessionDetail>> SaveMarks(int id, [FromBody] SaveMarksRequest request)
     {
@@ -203,10 +209,16 @@ public class AttendanceController : ControllerBase
         return Ok(await LoadRatesAsync(studentId, allocationId));
     }
 
+    [Authorize(Policy = "HoDOnly")]
     [HttpGet("alerts")]
-    public async Task<ActionResult<IEnumerable<AttendanceAlertRecord>>> GetAlerts([FromQuery] string? studentId)
+    public async Task<ActionResult<IEnumerable<AttendanceAlertRecord>>> GetAlerts(
+        [FromQuery] string? studentId,
+        CancellationToken cancellationToken)
     {
-        var rates = await LoadRatesAsync(studentId, null);
+        var departmentId = await ResolveHoDDepartmentIdAsync(cancellationToken);
+        if (departmentId is null) return Unauthorized();
+
+        var rates = await LoadRatesAsync(studentId, null, departmentId);
         var alerts = rates
             .Where(r => r.BelowThreshold)
             .Select(ToAlert)
@@ -216,16 +228,30 @@ public class AttendanceController : ControllerBase
         return Ok(alerts);
     }
 
+    [Authorize(Policy = "HoDOnly")]
     [HttpGet("reports")]
     public async Task<ActionResult<IEnumerable<AttendanceRateRecord>>> GetReports(
         [FromQuery] string view,
         [FromQuery] int? allocationId,
-        [FromQuery] string? studentId)
+        [FromQuery] string? studentId,
+        CancellationToken cancellationToken)
     {
+        var departmentId = await ResolveHoDDepartmentIdAsync(cancellationToken);
+        if (departmentId is null) return Unauthorized();
+
         if (view == "unit")
         {
             if (allocationId is null) return BadRequest("allocationId is required for a unit report.");
-            return await GetRates(null, allocationId);
+
+            var allocationIsInDepartment = await _dbContext.CourseAllocations
+                .AsNoTracking()
+                .AnyAsync(
+                    a => a.AllocationId == allocationId
+                        && a.Staff.DepartmentId == departmentId.Value,
+                    cancellationToken);
+            if (!allocationIsInDepartment) return Forbid();
+
+            return Ok(await LoadRatesAsync(null, allocationId, departmentId));
         }
 
         if (view == "student")
@@ -234,7 +260,7 @@ public class AttendanceController : ControllerBase
             {
                 return BadRequest("studentId is required for a student report.");
             }
-            return await GetRates(studentId, null);
+            return Ok(await LoadRatesAsync(studentId, null, departmentId));
         }
 
         return BadRequest("view must be 'unit' or 'student'.");
@@ -312,7 +338,10 @@ public class AttendanceController : ControllerBase
                     .ThenInclude(st => st.StaffNavigation);
     }
 
-    private async Task<List<AttendanceRateRecord>> LoadRatesAsync(string? studentNumber, int? allocationId)
+    private async Task<List<AttendanceRateRecord>> LoadRatesAsync(
+        string? studentNumber,
+        int? allocationId,
+        int? departmentId = null)
     {
         var query = _dbContext.Registrations
             .AsNoTracking()
@@ -321,6 +350,11 @@ public class AttendanceController : ControllerBase
         if (allocationId is not null)
         {
             query = query.Where(r => r.AllocationId == allocationId);
+        }
+
+        if (departmentId is not null)
+        {
+            query = query.Where(r => r.Allocation.Staff.DepartmentId == departmentId.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(studentNumber))
@@ -373,6 +407,22 @@ public class AttendanceController : ControllerBase
             .OrderBy(r => r.StudentName)
             .ThenBy(r => r.CourseCode)
             .ToList();
+    }
+
+    private async Task<int?> ResolveHoDDepartmentIdAsync(CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int
+            || _currentUser.StaffId is not int staffId)
+        {
+            return null;
+        }
+
+        return await _dbContext.Staff
+            .AsNoTracking()
+            .Where(s => s.StaffId == staffId)
+            .Select(s => (int?)s.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static AttendanceSessionRecord ToSessionRecord(AttendanceSession session)

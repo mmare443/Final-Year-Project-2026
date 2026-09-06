@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,7 @@ public class ResultsController : ControllerBase
         _currentUser = currentUser;
     }
 
-    // [Authorize(Policy = "StudentOnly")] — re-enable once AuthEnabled=true
+    [Authorize(Policy = "StudentOnly")]
     [HttpGet("me")]
     public async Task<ActionResult<IEnumerable<PublishedResultRecord>>> GetMyResults(
         CancellationToken cancellationToken)

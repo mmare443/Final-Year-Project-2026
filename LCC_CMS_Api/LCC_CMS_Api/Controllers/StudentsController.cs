@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,7 +46,7 @@ public class StudentsController : ControllerBase
 
     // --- Self-service (Student role) ---
 
-    // [Authorize(Policy = "StudentOnly")] — re-enable once AuthEnabled=true
+    [Authorize(Policy = "StudentOnly")]
     [HttpGet("me")]
     public async Task<ActionResult<StudentProfile>> GetMyProfile(CancellationToken cancellationToken)
     {
@@ -54,7 +55,7 @@ public class StudentsController : ControllerBase
         return Ok(ToProfile(loaded.Student!));
     }
 
-    // [Authorize(Policy = "StudentOnly")]
+    [Authorize(Policy = "StudentOnly")]
     [HttpPut("me")]
     public async Task<ActionResult<StudentProfile>> UpdateMyProfile(
         [FromBody] StudentProfileEditRequest request,
@@ -68,7 +69,7 @@ public class StudentsController : ControllerBase
         return Ok(ToProfile(loaded.Student!));
     }
 
-    // [Authorize(Policy = "StudentOnly")]
+    [Authorize(Policy = "StudentOnly")]
     [HttpPost("me/photo")]
     [RequestSizeLimit(MaxPhotoSizeBytes + 1024)]
     public async Task<ActionResult<StudentProfile>> UploadMyPhoto(
@@ -86,6 +87,7 @@ public class StudentsController : ControllerBase
         return Ok(ToProfile(loaded.Student!));
     }
 
+    [Authorize(Policy = "StudentOnly")]
     [HttpGet("me/photo")]
     public async Task<IActionResult> DownloadMyPhoto(CancellationToken cancellationToken)
     {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -77,6 +78,7 @@ public class LearningController : ControllerBase
         return Ok(materials.Select(ToMaterialRecord));
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPost("materials")]
     [RequestSizeLimit(MaxFileSizeBytes + 1024)]
     public async Task<ActionResult<LearningMaterialRecord>> UploadMaterial(
@@ -206,6 +208,7 @@ public class LearningController : ControllerBase
             enableRangeProcessing: true);
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpDelete("materials/{id}")]
     public async Task<IActionResult> DeleteMaterial(int id, CancellationToken cancellationToken)
     {
@@ -246,6 +249,7 @@ public class LearningController : ControllerBase
         return Ok(assignments.Select(ToAssignmentRecord));
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPost("assignments")]
     public async Task<ActionResult<AssignmentRecord>> CreateAssignment([FromBody] AssignmentWriteRequest request)
     {
@@ -282,6 +286,7 @@ public class LearningController : ControllerBase
         return Ok(ToAssignmentRecord(assignment));
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPut("assignments/{id}")]
     public async Task<ActionResult<AssignmentRecord>> UpdateAssignment(int id, [FromBody] AssignmentWriteRequest request)
     {
@@ -315,6 +320,7 @@ public class LearningController : ControllerBase
         return Ok(ToAssignmentRecord(assignment));
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpDelete("assignments/{id}")]
     public async Task<IActionResult> DeleteAssignment(int id)
     {
@@ -531,6 +537,7 @@ public class LearningController : ControllerBase
             enableRangeProcessing: true);
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPut("submissions/{id}/grade")]
     public async Task<ActionResult<SubmissionRecord>> Grade(int id, [FromBody] GradeRequest request)
     {

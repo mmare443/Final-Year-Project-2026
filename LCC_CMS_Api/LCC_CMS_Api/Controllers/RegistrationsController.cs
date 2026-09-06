@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -253,7 +254,7 @@ public class RegistrationsController : ControllerBase
         return Ok(record);
     }
 
-    // [Authorize(Policy = "RegistrarAdminOnly")] or HoD — re-enable once AuthEnabled=true.
+    [Authorize(Policy = "RegistrarAdminOnly")]
     // Per spec, either role may approve; this endpoint itself is role-agnostic.
     [HttpPut("{id}/decision")]
     public async Task<ActionResult<RegistrationRecord>> Decide(

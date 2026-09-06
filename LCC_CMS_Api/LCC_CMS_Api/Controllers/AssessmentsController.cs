@@ -1,4 +1,6 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -20,17 +22,24 @@ namespace LCC_CMS_Api.Controllers;
 public class AssessmentsController : ControllerBase
 {
     private readonly LccCmsDbContext _dbContext;
+    private readonly ICurrentUser _currentUser;
 
-    public AssessmentsController(LccCmsDbContext dbContext)
+    public AssessmentsController(LccCmsDbContext dbContext, ICurrentUser currentUser)
     {
         _dbContext = dbContext;
+        _currentUser = currentUser;
     }
 
+    [Authorize(Policy = "HoDOnly")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AssessmentRecord>>> GetAssessments()
     {
+        var departmentId = await ResolveHoDDepartmentIdAsync(HttpContext.RequestAborted);
+        if (departmentId is null) return Unauthorized();
+
         var assessments = await AssessmentGraph()
             .AsNoTracking()
+            .Where(a => a.Allocation.Staff.DepartmentId == departmentId.Value)
             .OrderBy(a => a.AllocationId)
             .ThenBy(a => a.Title)
             .ToListAsync();
@@ -38,16 +47,42 @@ public class AssessmentsController : ControllerBase
         return Ok(assessments.Select(ToRecord));
     }
 
+    [Authorize(Policy = "HoDOnly")]
     [HttpGet("{id}")]
-    public async Task<ActionResult<AssessmentRecord>> GetAssessment(int id)
+    public async Task<ActionResult<AssessmentRecord>> GetAssessment(
+        int id,
+        CancellationToken cancellationToken)
     {
+        var departmentId = await ResolveHoDDepartmentIdAsync(cancellationToken);
+        if (departmentId is null) return Unauthorized();
+
         var assessment = await AssessmentGraph()
             .AsNoTracking()
-            .FirstOrDefaultAsync(a => a.AssessmentId == id);
+            .FirstOrDefaultAsync(
+                a => a.AssessmentId == id
+                    && a.Allocation.Staff.DepartmentId == departmentId.Value,
+                cancellationToken);
         if (assessment is null) return NotFound();
         return Ok(ToRecord(assessment));
     }
 
+    private async Task<int?> ResolveHoDDepartmentIdAsync(CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int
+            || _currentUser.StaffId is not int staffId)
+        {
+            return null;
+        }
+
+        return await _dbContext.Staff
+            .AsNoTracking()
+            .Where(s => s.StaffId == staffId)
+            .Select(s => (int?)s.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPost]
     public async Task<ActionResult<AssessmentRecord>> CreateAssessment([FromBody] AssessmentWriteRequest request)
     {
@@ -84,6 +119,7 @@ public class AssessmentsController : ControllerBase
         return Ok(ToRecord(assessment));
     }
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpPut("{id}")]
     public async Task<ActionResult<AssessmentRecord>> UpdateAssessment(int id, [FromBody] AssessmentWriteRequest request)
     {
