@@ -57,6 +57,32 @@ public class LearningController : ControllerBase
         [FromQuery] int? allocationId,
         [FromQuery] string? studentId)
     {
+        if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted))
+        {
+            return Unauthorized();
+        }
+
+        if (RoleNames.ToPolicyRole(_currentUser.Role).Equals(RoleNames.Student, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted)
+                || _currentUser.StudentId is not int studentIdValue)
+            {
+                return Unauthorized();
+            }
+
+            var studentAllocations = await AllocationIdsForStudentAsync(studentIdValue);
+            allocationId = null;
+            studentId = null;
+            var studentMaterials = await _dbContext.LearningMaterials
+                .AsNoTracking()
+                .Include(m => m.Allocation)
+                    .ThenInclude(a => a.Course)
+                .Where(m => studentAllocations.Contains(m.AllocationId))
+                .OrderByDescending(m => m.UploadedAt)
+                .ToListAsync(HttpContext.RequestAborted);
+            return Ok(studentMaterials.Select(ToMaterialRecord));
+        }
+
         var query = _dbContext.LearningMaterials
             .AsNoTracking()
             .Include(m => m.Allocation)
@@ -88,6 +114,8 @@ public class LearningController : ControllerBase
     {
         var allocation = await LoadAllocation(allocationId);
         if (allocation is null) return BadRequest("Course allocation not found.");
+        var ownershipError = await RequireLecturerAllocationAsync(allocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
         if (string.IsNullOrWhiteSpace(title)) return BadRequest("Title is required.");
 
         var saved = await SaveFileAsync(file, "materials", HttpContext.RequestAborted);
@@ -231,6 +259,28 @@ public class LearningController : ControllerBase
         [FromQuery] int? allocationId,
         [FromQuery] string? studentId)
     {
+        if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted))
+        {
+            return Unauthorized();
+        }
+
+        if (RoleNames.ToPolicyRole(_currentUser.Role).Equals(RoleNames.Student, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted)
+                || _currentUser.StudentId is not int studentIdValue)
+            {
+                return Unauthorized();
+            }
+
+            var studentAllocations = await AllocationIdsForStudentAsync(studentIdValue);
+            var studentAssignments = await AssignmentGraph()
+                .AsNoTracking()
+                .Where(a => studentAllocations.Contains(a.AllocationId))
+                .OrderBy(a => a.DueDate)
+                .ToListAsync(HttpContext.RequestAborted);
+            return Ok(studentAssignments.Select(ToAssignmentRecord));
+        }
+
         var query = AssignmentGraph().AsNoTracking();
         if (allocationId is not null)
         {
@@ -255,6 +305,8 @@ public class LearningController : ControllerBase
     {
         var allocation = await LoadAllocation(request.AllocationId);
         if (allocation is null) return BadRequest("Course allocation not found.");
+        var ownershipError = await RequireLecturerAllocationAsync(request.AllocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
         if (string.IsNullOrWhiteSpace(request.Title)) return BadRequest("Title is required.");
         if (request.MaxMarks <= 0) return BadRequest("Maximum marks must be greater than 0.");
         if (!TryParseDueDate(request.DueDate, out var dueDate))
@@ -292,6 +344,8 @@ public class LearningController : ControllerBase
     {
         var assignment = await AssignmentGraph().FirstOrDefaultAsync(a => a.AssignmentId == id);
         if (assignment is null) return NotFound();
+        var ownershipError = await RequireLecturerAllocationAsync(assignment.AllocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
         if (string.IsNullOrWhiteSpace(request.Title)) return BadRequest("Title is required.");
         if (request.MaxMarks <= 0) return BadRequest("Maximum marks must be greater than 0.");
 
@@ -326,6 +380,8 @@ public class LearningController : ControllerBase
     {
         var assignment = await AssignmentGraph().FirstOrDefaultAsync(a => a.AssignmentId == id);
         if (assignment is null) return NotFound();
+        var ownershipError = await RequireLecturerAllocationAsync(assignment.AllocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
 
         var dto = ToAssignmentRecord(assignment);
 
@@ -349,6 +405,7 @@ public class LearningController : ControllerBase
 
     // --- Submissions ---
 
+    [Authorize(Policy = "LecturerOnly")]
     [HttpGet("assignments/{id}/submissions")]
     public async Task<ActionResult<IEnumerable<SubmissionRecord>>> GetSubmissions(int id)
     {
@@ -365,19 +422,25 @@ public class LearningController : ControllerBase
             .OrderBy(s => s.StudentName));
     }
 
+    [Authorize(Policy = "StudentOnly")]
     [HttpGet("submissions")]
     public async Task<ActionResult<IEnumerable<SubmissionRecord>>> GetMySubmissions([FromQuery] string studentId)
     {
-        if (string.IsNullOrWhiteSpace(studentId)) return BadRequest("studentId is required.");
+        if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted)
+            || _currentUser.StudentId is not int currentStudentId)
+        {
+            return Unauthorized();
+        }
 
         var submissions = await SubmissionGraph()
             .AsNoTracking()
-            .Where(s => s.Student.StudentNumber == studentId)
+            .Where(s => s.StudentId == currentStudentId)
             .ToListAsync();
 
         return Ok(submissions.Select(ToSubmissionRecord));
     }
 
+    [Authorize(Policy = "StudentOnly")]
     [HttpPost("assignments/{id}/submissions")]
     [RequestSizeLimit(MaxFileSizeBytes + 1024)]
     public async Task<ActionResult<SubmissionRecord>> Submit(
@@ -389,9 +452,15 @@ public class LearningController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.AssignmentId == id);
         if (assignment is null) return NotFound();
-        if (string.IsNullOrWhiteSpace(studentId)) return BadRequest("studentId is required.");
+        if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted)
+            || _currentUser.StudentId is not int currentStudentId)
+        {
+            return Unauthorized();
+        }
 
-        var student = await FindStudentByNumberAsync(studentId.Trim());
+        var student = await _dbContext.Students
+            .Include(s => s.Admission)
+            .FirstOrDefaultAsync(s => s.StudentId == currentStudentId, HttpContext.RequestAborted);
         if (student is null) return BadRequest("Student was not found.");
 
         var enrolled = (await RosterFor(assignment.AllocationId)).Any(s => s.StudentId == student.StudentNumber);
@@ -542,8 +611,15 @@ public class LearningController : ControllerBase
     public async Task<ActionResult<SubmissionRecord>> Grade(int id, [FromBody] GradeRequest request)
     {
         var submission = await SubmissionGraph()
+            .Include(s => s.Assignment)
+                .ThenInclude(a => a.Allocation)
             .FirstOrDefaultAsync(s => s.SubmissionId == id);
         if (submission is null) return NotFound();
+
+        var ownershipError = await RequireLecturerAllocationAsync(
+            submission.Assignment.AllocationId,
+            HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
 
         var assignment = await _dbContext.Assignments
             .AsNoTracking()
@@ -572,6 +648,22 @@ public class LearningController : ControllerBase
     [HttpGet("summary")]
     public async Task<ActionResult<object>> GetSummary([FromQuery] string? studentId)
     {
+        if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted))
+        {
+            return Unauthorized();
+        }
+
+        if (RoleNames.ToPolicyRole(_currentUser.Role).Equals(RoleNames.Student, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!await _currentUser.ResolveAsync(HttpContext.RequestAborted)
+                || _currentUser.StudentNumber is not string currentStudentNumber)
+            {
+                return Unauthorized();
+            }
+
+            studentId = currentStudentNumber;
+        }
+
         if (studentId is not null)
         {
             var student = await FindStudentByNumberAsync(studentId);
@@ -783,6 +875,32 @@ public class LearningController : ControllerBase
             .ToListAsync();
 
         return ids.ToHashSet();
+    }
+
+    private async Task<HashSet<int>> AllocationIdsForStudentAsync(int studentId)
+    {
+        var ids = await _dbContext.Registrations
+            .AsNoTracking()
+            .Where(r => r.StudentId == studentId && r.Status == "Approved")
+            .Select(r => r.AllocationId)
+            .ToListAsync(HttpContext.RequestAborted);
+        return ids.ToHashSet();
+    }
+
+    private async Task<ActionResult?> RequireLecturerAllocationAsync(
+        int allocationId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.StaffId is not int staffId)
+        {
+            return Unauthorized();
+        }
+
+        var ownsAllocation = await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .AnyAsync(a => a.AllocationId == allocationId && a.StaffId == staffId, cancellationToken);
+        return ownsAllocation ? null : Forbid();
     }
 
     private async Task<List<AttendanceRosterStudent>> RosterFor(int allocationId)

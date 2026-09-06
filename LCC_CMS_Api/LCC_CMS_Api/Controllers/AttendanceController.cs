@@ -42,9 +42,18 @@ public class AttendanceController : ControllerBase
     }
 
     [HttpGet("sessions")]
-    public async Task<ActionResult<IEnumerable<AttendanceSessionRecord>>> GetSessions([FromQuery] int? allocationId)
+    public async Task<ActionResult<IEnumerable<AttendanceSessionRecord>>> GetSessions(
+        [FromQuery] int? allocationId,
+        CancellationToken cancellationToken)
     {
+        var scope = await ResolveAttendanceScopeAsync(cancellationToken);
+        if (scope.Error is not null) return scope.Error;
+
         var query = SessionGraph();
+        if (scope.AllocationIds is not null)
+        {
+            query = query.Where(s => scope.AllocationIds.Contains(s.AllocationId));
+        }
         if (allocationId is not null)
         {
             query = query.Where(s => s.AllocationId == allocationId);
@@ -58,10 +67,20 @@ public class AttendanceController : ControllerBase
     }
 
     [HttpGet("sessions/{id}")]
-    public async Task<ActionResult<AttendanceSessionDetail>> GetSession(int id)
+    public async Task<ActionResult<AttendanceSessionDetail>> GetSession(
+        int id,
+        CancellationToken cancellationToken)
     {
-        var session = await SessionGraph().FirstOrDefaultAsync(s => s.SessionId == id);
+        var scope = await ResolveAttendanceScopeAsync(cancellationToken);
+        if (scope.Error is not null) return scope.Error;
+
+        var session = await SessionGraph()
+            .FirstOrDefaultAsync(s => s.SessionId == id, cancellationToken);
         if (session is null) return NotFound();
+        if (scope.AllocationIds is not null && !scope.AllocationIds.Contains(session.AllocationId))
+        {
+            return Forbid();
+        }
 
         var roster = await RosterFor(session.AllocationId);
         var marks = await MarksForSessionAsync(id);
@@ -74,8 +93,17 @@ public class AttendanceController : ControllerBase
     }
 
     [HttpGet("roster")]
-    public async Task<ActionResult<IEnumerable<AttendanceRosterStudent>>> GetRoster([FromQuery] int allocationId)
+    public async Task<ActionResult<IEnumerable<AttendanceRosterStudent>>> GetRoster(
+        [FromQuery] int allocationId,
+        CancellationToken cancellationToken)
     {
+        var scope = await ResolveAttendanceScopeAsync(cancellationToken);
+        if (scope.Error is not null) return scope.Error;
+        if (scope.AllocationIds is not null && !scope.AllocationIds.Contains(allocationId))
+        {
+            return Forbid();
+        }
+
         return Ok(await RosterFor(allocationId));
     }
 
@@ -198,15 +226,35 @@ public class AttendanceController : ControllerBase
             return StatusCode(status, message);
         }
 
-        return await GetSession(id);
+        return await GetSession(id, HttpContext.RequestAborted);
     }
 
     [HttpGet("rates")]
     public async Task<ActionResult<IEnumerable<AttendanceRateRecord>>> GetRates(
         [FromQuery] string? studentId,
-        [FromQuery] int? allocationId)
+        [FromQuery] int? allocationId,
+        CancellationToken cancellationToken)
     {
-        return Ok(await LoadRatesAsync(studentId, allocationId));
+        var scope = await ResolveAttendanceScopeAsync(cancellationToken);
+        if (scope.Error is not null) return scope.Error;
+        if (scope.AllocationIds is not null)
+        {
+            if (allocationId is not null && !scope.AllocationIds.Contains(allocationId.Value))
+            {
+                return Forbid();
+            }
+
+            allocationId ??= scope.AllocationIds.Count == 1
+                ? scope.AllocationIds.Single()
+                : null;
+        }
+
+        if (scope.StudentId is not null)
+        {
+            studentId = scope.StudentNumber;
+        }
+
+        return Ok(await LoadRatesAsync(studentId, allocationId, scope.DepartmentId, cancellationToken));
     }
 
     [Authorize(Policy = "HoDOnly")]
@@ -218,7 +266,7 @@ public class AttendanceController : ControllerBase
         var departmentId = await ResolveHoDDepartmentIdAsync(cancellationToken);
         if (departmentId is null) return Unauthorized();
 
-        var rates = await LoadRatesAsync(studentId, null, departmentId);
+        var rates = await LoadRatesAsync(studentId, null, departmentId, cancellationToken);
         var alerts = rates
             .Where(r => r.BelowThreshold)
             .Select(ToAlert)
@@ -251,7 +299,7 @@ public class AttendanceController : ControllerBase
                     cancellationToken);
             if (!allocationIsInDepartment) return Forbid();
 
-            return Ok(await LoadRatesAsync(null, allocationId, departmentId));
+            return Ok(await LoadRatesAsync(null, allocationId, departmentId, cancellationToken));
         }
 
         if (view == "student")
@@ -260,7 +308,7 @@ public class AttendanceController : ControllerBase
             {
                 return BadRequest("studentId is required for a student report.");
             }
-            return Ok(await LoadRatesAsync(studentId, null, departmentId));
+            return Ok(await LoadRatesAsync(studentId, null, departmentId, cancellationToken));
         }
 
         return BadRequest("view must be 'unit' or 'student'.");
@@ -341,7 +389,8 @@ public class AttendanceController : ControllerBase
     private async Task<List<AttendanceRateRecord>> LoadRatesAsync(
         string? studentNumber,
         int? allocationId,
-        int? departmentId = null)
+        int? departmentId = null,
+        CancellationToken cancellationToken = default)
     {
         var query = _dbContext.Registrations
             .AsNoTracking()
@@ -383,7 +432,7 @@ public class AttendanceController : ControllerBase
                     && a.Session.AllocationId == r.AllocationId
                     && a.Status != "Absent"),
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return rows
             .DistinctBy(r => (r.AllocationId, r.StudentNumber))
@@ -423,6 +472,64 @@ public class AttendanceController : ControllerBase
             .Where(s => s.StaffId == staffId)
             .Select(s => (int?)s.DepartmentId)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<(HashSet<int>? AllocationIds, int? StudentId, string? StudentNumber, int? DepartmentId, ActionResult? Error)> ResolveAttendanceScopeAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int)
+        {
+            return (null, null, null, null, Unauthorized());
+        }
+
+        var role = RoleNames.ToPolicyRole(_currentUser.Role);
+        if (role.Equals(RoleNames.RegistrarAdmin, StringComparison.OrdinalIgnoreCase))
+        {
+            return (null, null, null, null, null);
+        }
+
+        if (role.Equals(RoleNames.Student, StringComparison.OrdinalIgnoreCase)
+            && _currentUser.StudentId is int studentId)
+        {
+            var allocations = await _dbContext.Registrations
+                .AsNoTracking()
+                .Where(r => r.StudentId == studentId && r.Status == "Approved")
+                .Select(r => r.AllocationId)
+                .ToListAsync(cancellationToken);
+            return (allocations.ToHashSet(), studentId, _currentUser.StudentNumber, null, null);
+        }
+
+        if (role.Equals(RoleNames.Lecturer, StringComparison.OrdinalIgnoreCase)
+            && _currentUser.StaffId is int lecturerId)
+        {
+            var allocations = await _dbContext.CourseAllocations
+                .AsNoTracking()
+                .Where(a => a.StaffId == lecturerId)
+                .Select(a => a.AllocationId)
+                .ToListAsync(cancellationToken);
+            return (allocations.ToHashSet(), null, null, null, null);
+        }
+
+        if (role.Equals(RoleNames.HoD, StringComparison.OrdinalIgnoreCase)
+            && _currentUser.StaffId is int hodId)
+        {
+            var departmentId = await _dbContext.Staff
+                .AsNoTracking()
+                .Where(s => s.StaffId == hodId)
+                .Select(s => (int?)s.DepartmentId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (departmentId is null) return (null, null, null, null, Unauthorized());
+
+            var allocations = await _dbContext.CourseAllocations
+                .AsNoTracking()
+                .Where(a => a.Staff.DepartmentId == departmentId.Value)
+                .Select(a => a.AllocationId)
+                .ToListAsync(cancellationToken);
+            return (allocations.ToHashSet(), null, null, departmentId, null);
+        }
+
+        return (null, null, null, null, Forbid());
     }
 
     private static AttendanceSessionRecord ToSessionRecord(AttendanceSession session)

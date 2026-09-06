@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,6 +42,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(faculties);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost("faculties")]
     public async Task<IActionResult> CreateFaculty([FromBody] Faculty request)
     {
@@ -50,6 +52,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(f);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("faculties/{id}")]
     public async Task<IActionResult> UpdateFaculty(int id, [FromBody] Faculty request)
     {
@@ -72,6 +75,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(departments);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost("departments")]
     public async Task<IActionResult> CreateDepartment([FromBody] Department request)
     {
@@ -90,6 +94,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(d);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("departments/{id}")]
     public async Task<IActionResult> UpdateDepartment(int id, [FromBody] Department request)
     {
@@ -119,6 +124,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(programmes);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost("programmes")]
     public async Task<IActionResult> CreateProgramme([FromBody] Programme request)
     {
@@ -138,6 +144,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(p);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("programmes/{id}")]
     public async Task<IActionResult> UpdateProgramme(int id, [FromBody] Programme request)
     {
@@ -179,6 +186,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(courses);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost("courses")]
     public async Task<IActionResult> CreateCourse([FromBody] Course request)
     {
@@ -209,6 +217,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(c);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("courses/{id}")]
     public async Task<IActionResult> UpdateCourse(int id, [FromBody] Course request)
     {
@@ -250,6 +259,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(years);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost("academic-years")]
     public async Task<IActionResult> CreateAcademicYear([FromBody] AcademicYear request)
     {
@@ -285,6 +295,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(semesters);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost("semesters")]
     public async Task<IActionResult> CreateSemester([FromBody] Semester request)
     {
@@ -310,6 +321,7 @@ public class AcademicStructureController : ControllerBase
     }
 
     // Business rule: only one semester may be active at any time.
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("semesters/{id}/activate")]
     public async Task<IActionResult> ActivateSemester(int id)
     {
@@ -340,6 +352,7 @@ public class AcademicStructureController : ControllerBase
         return Ok(allocations);
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost("course-allocations")]
     public async Task<IActionResult> CreateCourseAllocation([FromBody] CourseAllocation request)
     {

@@ -132,7 +132,7 @@ public class StudentsController : ControllerBase
 
     // --- Registrar/Admin oversight ---
 
-    // [Authorize(Policy = "RegistrarAdminOnly")]
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<StudentProfile>>> GetAll()
     {
@@ -144,7 +144,7 @@ public class StudentsController : ControllerBase
         return Ok(students.Select(ToProfile));
     }
 
-    // [Authorize(Policy = "RegistrarAdminOnly")]
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("{id}")]
     public async Task<ActionResult<StudentProfile>> CorrectProfile(string id, [FromBody] StudentProfileEditRequest request)
     {

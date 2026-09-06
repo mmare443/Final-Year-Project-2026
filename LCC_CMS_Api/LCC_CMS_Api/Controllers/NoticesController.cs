@@ -1,5 +1,6 @@
 using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -67,6 +68,7 @@ public class NoticesController : ControllerBase
         return Ok(ToRecord(notice));
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost]
     public async Task<ActionResult<NoticeRecord>> CreateNotice([FromBody] NoticeWriteRequest request)
     {
@@ -99,6 +101,7 @@ public class NoticesController : ControllerBase
         return Ok(ToRecord(notice));
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("{id}")]
     public async Task<ActionResult<NoticeRecord>> UpdateNotice(int id, [FromBody] NoticeWriteRequest request)
     {
@@ -129,6 +132,7 @@ public class NoticesController : ControllerBase
         return Ok(ToRecord(notice));
     }
 
+    [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteNotice(int id)
     {

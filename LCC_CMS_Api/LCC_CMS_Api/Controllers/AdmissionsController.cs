@@ -121,6 +121,7 @@ public class AdmissionsController : ControllerBase
     // Changed from [FromBody] JSON to [FromForm] multipart — required
     // whenever a file is part of the request. The React side sends this
     // as FormData, not JSON.stringify, to match.
+    [AllowAnonymous]
     [HttpPost]
     [RequestSizeLimit(8 * MaxFileSizeBytes)] // headroom for up to 8 files
     public async Task<ActionResult<AdmissionApplication>> Submit(

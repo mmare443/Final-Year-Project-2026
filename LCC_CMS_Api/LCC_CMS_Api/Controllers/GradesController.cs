@@ -46,9 +46,12 @@ public class GradesController : ControllerBase
     public async Task<ActionResult<IEnumerable<GradeRecord>>> GetGrades(int id)
     {
         var assessment = await _dbContext.Assessments
+            .Include(a => a.Allocation)
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.AssessmentId == id);
         if (assessment is null) return NotFound();
+        var ownershipError = await RequireLecturerAllocationAsync(assessment.AllocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
 
         return Ok(await LoadRosterGradesAsync(assessment));
     }
@@ -58,8 +61,11 @@ public class GradesController : ControllerBase
     public async Task<ActionResult<IEnumerable<GradeRecord>>> SaveGrades(int id, [FromBody] SaveGradesRequest request)
     {
         var assessment = await _dbContext.Assessments
+            .Include(a => a.Allocation)
             .FirstOrDefaultAsync(a => a.AssessmentId == id);
         if (assessment is null) return NotFound();
+        var ownershipError = await RequireLecturerAllocationAsync(assessment.AllocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
 
         if (request.Grades is null || request.Grades.Count == 0)
         {
@@ -329,6 +335,22 @@ public class GradesController : ControllerBase
             .ToListAsync();
 
         return ids.ToHashSet();
+    }
+
+    private async Task<ActionResult?> RequireLecturerAllocationAsync(
+        int allocationId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.StaffId is not int staffId)
+        {
+            return Unauthorized();
+        }
+
+        var ownsAllocation = await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .AnyAsync(a => a.AllocationId == allocationId && a.StaffId == staffId, cancellationToken);
+        return ownsAllocation ? null : Forbid();
     }
 
     internal static string LetterFromMarks(decimal marksObtained, decimal maxMarks)

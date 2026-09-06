@@ -91,6 +91,8 @@ public class AssessmentsController : ControllerBase
 
         var allocation = await LoadAllocation(request.AllocationId);
         if (allocation is null) return BadRequest("Course allocation not found.");
+        var ownershipError = await RequireLecturerAllocationAsync(request.AllocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
 
         if (await WeightWouldExceedAsync(request.AllocationId, request.WeightPercent, excludeAssessmentId: null))
         {
@@ -128,9 +130,13 @@ public class AssessmentsController : ControllerBase
 
         var assessment = await AssessmentGraph().FirstOrDefaultAsync(a => a.AssessmentId == id);
         if (assessment is null) return NotFound();
+        var currentOwnershipError = await RequireLecturerAllocationAsync(assessment.AllocationId, HttpContext.RequestAborted);
+        if (currentOwnershipError is not null) return currentOwnershipError;
 
         var allocation = await LoadAllocation(request.AllocationId);
         if (allocation is null) return BadRequest("Course allocation not found.");
+        var ownershipError = await RequireLecturerAllocationAsync(request.AllocationId, HttpContext.RequestAborted);
+        if (ownershipError is not null) return ownershipError;
 
         if (await WeightWouldExceedAsync(request.AllocationId, request.WeightPercent, excludeAssessmentId: id))
         {
@@ -195,6 +201,22 @@ public class AssessmentsController : ControllerBase
             .AsNoTracking()
             .Include(a => a.Course)
             .FirstOrDefaultAsync(a => a.AllocationId == allocationId);
+    }
+
+    private async Task<ActionResult?> RequireLecturerAllocationAsync(
+        int allocationId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.StaffId is not int staffId)
+        {
+            return Unauthorized();
+        }
+
+        var ownsAllocation = await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .AnyAsync(a => a.AllocationId == allocationId && a.StaffId == staffId, cancellationToken);
+        return ownsAllocation ? null : Forbid();
     }
 
     private static AssessmentRecord ToRecord(Assessment assessment)

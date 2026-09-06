@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using LCC_CMS_Api.Models;
 using Microsoft.AspNetCore.Authentication;
@@ -12,6 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 // ---------------------------------------------------------------
 var authEnabled = builder.Configuration.GetValue<bool>("AuthEnabled", false);
 var azureAdConfigured = IsAzureAdConfigured(builder.Configuration);
+
+if (authEnabled && (!azureAdConfigured || !IsAzureAdAudienceConfigured(builder.Configuration)))
+{
+    throw new InvalidOperationException(
+        "AuthEnabled=true requires valid AzureAd:TenantId, AzureAd:ClientId, and AzureAd:Audience settings.");
+}
 
 // JWT only when AzureAd has a real tenant + API client id (GUIDs).
 // Placeholders such as "<your-tenant-id>" must not call Microsoft.Identity.Web
@@ -82,6 +89,10 @@ if (azureAdConfigured)
 
 builder.Services.AddAuthorization(options =>
 {
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+
     options.AddPolicy("StudentOnly", p => p.RequireRole(
         LCC_CMS_Api.Services.RoleNames.Student));
     options.AddPolicy("LecturerOnly", p => p.RequireRole(
@@ -204,4 +215,9 @@ static bool IsAzureAdGuid(string? value)
     if (string.IsNullOrWhiteSpace(value)) return false;
     if (value.Contains('<') || value.Contains('>')) return false;
     return Guid.TryParse(value.Trim(), out _);
+}
+
+static bool IsAzureAdAudienceConfigured(IConfiguration configuration)
+{
+    return IsAzureAdGuid(configuration["AzureAd:Audience"]);
 }

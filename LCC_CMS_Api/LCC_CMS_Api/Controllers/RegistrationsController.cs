@@ -106,11 +106,15 @@ public class RegistrationsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<RegistrationRecord>> Register([FromBody] RegistrationRequest request)
+    public async Task<ActionResult<RegistrationRecord>> Register(
+        [FromBody] RegistrationRequest request,
+        CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.StudentId))
+        if (!await _currentUser.ResolveAsync(cancellationToken)
+            || _currentUser.UserId is not int
+            || _currentUser.StudentId is not int currentStudentId)
         {
-            return BadRequest("Student is required.");
+            return Unauthorized();
         }
 
         var activeSemester = await _dbContext.Semesters
@@ -123,7 +127,7 @@ public class RegistrationsController : ControllerBase
 
         var student = await _dbContext.Students
             .Include(s => s.Admission)
-            .FirstOrDefaultAsync(s => s.StudentNumber == request.StudentId.Trim());
+            .FirstOrDefaultAsync(s => s.StudentId == currentStudentId, cancellationToken);
         if (student is null)
         {
             return BadRequest("Student not found.");
