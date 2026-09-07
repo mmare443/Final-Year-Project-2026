@@ -89,9 +89,15 @@ if (azureAdConfigured)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
+    // Deny-by-default only when JWT is registered. Lab mode has no
+    // DefaultChallengeScheme; a global FallbackPolicy would throw
+    // InvalidOperationException on every request (net8 auto UseAuthorization).
+    if (authEnabled && azureAdConfigured)
+    {
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+    }
 
     options.AddPolicy("StudentOnly", p => p.RequireRole(
         LCC_CMS_Api.Services.RoleNames.Student));

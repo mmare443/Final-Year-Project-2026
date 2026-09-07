@@ -13,7 +13,7 @@ namespace LCC_CMS_Api.Controllers;
 /// Roster = M4 Approved registrations for the assessment's allocation.
 /// Public student id is StudentNumber; persisted StudentId is the int PK.
 /// GradeLetter is derived from assessment percentage using LCC letters
-/// A/B/C/D/F. Point values (A=4 … F=0) live on grade_scale for later GPA.
+/// A/B/C/D/F. Point values (A=4 … F=0) live on grade_scale for later .
 /// SaveGrades always stores Published = false and refuses rows that are
 /// already published. PUT publish sets Published = true on every grade
 /// for that assessment. Post-publication changes use
