@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { API_ORIGIN, apiFetch } from "../api";
 
 /**
  * ADMISSIONS CONTEXT — M1, wired to the real ASP.NET Core Web API.
@@ -24,12 +25,8 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 
 // Change this if your backend runs on a different port than the one
 // `dotnet run` printed for you.
-const API_ORIGIN = "http://localhost:5000";
 const API_BASE = `${API_ORIGIN}/api`;
 
-// Exported so components can build full URLs to uploaded files — e.g.
-// `${API_ORIGIN}${doc.path}` — since each document's path from the API is
-// root-relative (/uploads/admissions/<guid>.pdf), not a full URL.
 export { API_ORIGIN };
 
 export const MOCK_PROGRAMMES = [
@@ -57,7 +54,7 @@ export function MockDataProvider({ children }) {
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/admissions`);
+      const res = await apiFetch(`${API_BASE}/admissions`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setApplications(data);
@@ -100,7 +97,7 @@ export function MockDataProvider({ children }) {
       if (file) formData.append(key, file);
     }
 
-    const res = await fetch(`${API_BASE}/admissions`, {
+    const res = await apiFetch(`${API_BASE}/admissions`, {
       method: "POST",
       body: formData,
     });
@@ -117,7 +114,7 @@ export function MockDataProvider({ children }) {
   };
 
   const decideApplication = async (id, decision) => {
-    const res = await fetch(`${API_BASE}/admissions/${id}/decision`, {
+    const res = await apiFetch(`${API_BASE}/admissions/${id}/decision`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision }),

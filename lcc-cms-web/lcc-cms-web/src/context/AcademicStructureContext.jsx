@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import { API_ORIGIN } from "./MockDataContext";
+import { apiFetch } from "../api";
 
 /**
  * ACADEMIC STRUCTURE CONTEXT — M3.
@@ -37,7 +38,7 @@ export function AcademicStructureProvider({ children }) {
     try {
       const entries = Object.entries(ENTITY_ENDPOINTS);
       const results = await Promise.all(
-        entries.map(([, endpoint]) => fetch(`${API_BASE}/${endpoint}`).then((r) => {
+        entries.map(([, endpoint]) => apiFetch(`${API_BASE}/${endpoint}`).then((r) => {
           if (!r.ok) throw new Error(`API returned ${r.status}`);
           return r.json();
         }))
@@ -58,7 +59,7 @@ export function AcademicStructureProvider({ children }) {
 
   const create = async (entityKey, payload) => {
     const endpoint = ENTITY_ENDPOINTS[entityKey];
-    const res = await fetch(`${API_BASE}/${endpoint}`, {
+    const res = await apiFetch(`${API_BASE}/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -73,7 +74,7 @@ export function AcademicStructureProvider({ children }) {
   };
 
   const activateSemester = async (id) => {
-    const res = await fetch(`${API_BASE}/semesters/${id}/activate`, { method: "PUT" });
+    const res = await apiFetch(`${API_BASE}/semesters/${id}/activate`, { method: "PUT" });
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     await fetchAll(); // re-fetch since activating one deactivates all others
   };

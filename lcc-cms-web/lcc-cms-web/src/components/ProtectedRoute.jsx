@@ -8,7 +8,11 @@ import { useMockAuth } from "../context/MockAuthContext";
  * shape, just checked against mock state instead of a JWT for now.
  */
 export default function ProtectedRoute({ allowedRole, children }) {
-  const { isAuthenticated, role } = useMockAuth();
+  const { isAuthenticated, role, ready } = useMockAuth();
+
+  if (!ready) {
+    return null;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

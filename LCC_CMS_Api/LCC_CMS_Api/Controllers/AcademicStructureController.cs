@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,10 +25,12 @@ namespace LCC_CMS_Api.Controllers;
 public class AcademicStructureController : ControllerBase
 {
     private readonly LccCmsDbContext _dbContext;
+    private readonly ICurrentUser _currentUser;
 
-    public AcademicStructureController(LccCmsDbContext dbContext)
+    public AcademicStructureController(LccCmsDbContext dbContext, ICurrentUser currentUser)
     {
         _dbContext = dbContext;
+        _currentUser = currentUser;
     }
 
     // --- Faculties ---
@@ -380,5 +383,115 @@ public class AcademicStructureController : ControllerBase
         _dbContext.CourseAllocations.Add(a);
         await _dbContext.SaveChangesAsync();
         return Ok(a);
+    }
+
+    /// <summary>
+    /// M9 Phase 2 — Registrar/Admin may update any allocation. HoD may update
+    /// only when the existing lecturer, target lecturer, and course programme
+    /// are all in the HoD's department.
+    /// </summary>
+    [HttpPut("course-allocations/{id:int}")]
+    public async Task<IActionResult> UpdateCourseAllocation(
+        int id,
+        [FromBody] CourseAllocation request,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.UserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var role = RoleNames.ToPolicyRole(_currentUser.Role);
+        var isRegistrar = role.Equals(RoleNames.RegistrarAdmin, StringComparison.OrdinalIgnoreCase);
+        var isHoD = role.Equals(RoleNames.HoD, StringComparison.OrdinalIgnoreCase);
+        if (!isRegistrar && !isHoD)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var allocation = await _dbContext.CourseAllocations
+            .Include(a => a.Staff)
+            .Include(a => a.Course)
+                .ThenInclude(c => c.Programme)
+            .FirstOrDefaultAsync(a => a.AllocationId == id, cancellationToken);
+        if (allocation is null) return NotFound();
+
+        if (!await _dbContext.Courses.AnyAsync(c => c.CourseId == request.CourseId, cancellationToken))
+        {
+            return BadRequest("Course not found.");
+        }
+
+        if (!await _dbContext.Semesters.AnyAsync(s => s.SemesterId == request.SemesterId, cancellationToken))
+        {
+            return BadRequest("Semester not found.");
+        }
+
+        var targetStaff = await _dbContext.Staff
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.StaffId == request.StaffId, cancellationToken);
+        if (targetStaff is null)
+        {
+            return BadRequest("Staff not found.");
+        }
+
+        if (isHoD)
+        {
+            if (_currentUser.StaffId is not int hodStaffId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            var hodDepartmentId = await _dbContext.Staff
+                .AsNoTracking()
+                .Where(s => s.StaffId == hodStaffId)
+                .Select(s => (int?)s.DepartmentId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (hodDepartmentId is null)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            var existingStaffDepartmentId = allocation.Staff.DepartmentId;
+            var courseDepartmentId = allocation.Course.Programme.DepartmentId;
+            if (request.CourseId != allocation.CourseId)
+            {
+                courseDepartmentId = await _dbContext.Courses
+                    .AsNoTracking()
+                    .Where(c => c.CourseId == request.CourseId)
+                    .Select(c => c.Programme.DepartmentId)
+                    .FirstAsync(cancellationToken);
+            }
+
+            if (existingStaffDepartmentId != hodDepartmentId.Value
+                || targetStaff.DepartmentId != hodDepartmentId.Value
+                || courseDepartmentId != hodDepartmentId.Value)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden);
+            }
+        }
+
+        var duplicate = await _dbContext.CourseAllocations.AnyAsync(
+            a => a.AllocationId != id
+                && a.CourseId == request.CourseId
+                && a.StaffId == request.StaffId
+                && a.SemesterId == request.SemesterId,
+            cancellationToken);
+        if (duplicate)
+        {
+            return Conflict("That course is already allocated to this staff member for the semester.");
+        }
+
+        allocation.CourseId = request.CourseId;
+        allocation.SemesterId = request.SemesterId;
+        allocation.StaffId = request.StaffId;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            allocation.AllocationId,
+            allocation.CourseId,
+            allocation.SemesterId,
+            allocation.StaffId,
+        });
     }
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import { API_ORIGIN } from "./MockDataContext";
+import { apiFetch } from "../api";
 
 /**
  * ATTENDANCE CONTEXT — M5.
@@ -34,7 +35,7 @@ export function AttendanceProvider({ children }) {
       const url = allocationId
         ? `${API_BASE}/sessions?allocationId=${allocationId}`
         : `${API_BASE}/sessions`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setSessions(data);
@@ -49,7 +50,7 @@ export function AttendanceProvider({ children }) {
   }, []);
 
   const fetchSession = useCallback(async (id) => {
-    const res = await fetch(`${API_BASE}/sessions/${id}`);
+    const res = await apiFetch(`${API_BASE}/sessions/${id}`);
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     const data = await res.json();
     setSessionDetail(data);
@@ -57,7 +58,7 @@ export function AttendanceProvider({ children }) {
   }, []);
 
   const openSession = async (allocationId, sessionDate) => {
-    const res = await fetch(`${API_BASE}/sessions`, {
+    const res = await apiFetch(`${API_BASE}/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ allocationId, sessionDate }),
@@ -72,7 +73,7 @@ export function AttendanceProvider({ children }) {
   };
 
   const saveMarks = async (sessionId, marks) => {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/marks`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/marks`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ marks }),
@@ -92,7 +93,7 @@ export function AttendanceProvider({ children }) {
       if (studentId) params.set("studentId", studentId);
       if (allocationId) params.set("allocationId", allocationId);
       const qs = params.toString();
-      const res = await fetch(`${API_BASE}/rates${qs ? `?${qs}` : ""}`);
+      const res = await apiFetch(`${API_BASE}/rates${qs ? `?${qs}` : ""}`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setRates(data);
@@ -109,7 +110,7 @@ export function AttendanceProvider({ children }) {
       const url = studentId
         ? `${API_BASE}/alerts?studentId=${encodeURIComponent(studentId)}`
         : `${API_BASE}/alerts`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setAlerts(data);
@@ -125,7 +126,7 @@ export function AttendanceProvider({ children }) {
     const params = new URLSearchParams({ view });
     if (allocationId) params.set("allocationId", allocationId);
     if (studentId) params.set("studentId", studentId);
-    const res = await fetch(`${API_BASE}/reports?${params.toString()}`);
+    const res = await apiFetch(`${API_BASE}/reports?${params.toString()}`);
     if (!res.ok) {
       const message = await res.text().catch(() => null);
       throw new Error(message || `API returned ${res.status}`);

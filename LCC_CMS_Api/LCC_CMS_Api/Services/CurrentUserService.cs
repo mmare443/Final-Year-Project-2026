@@ -56,8 +56,20 @@ public sealed class CurrentUserService : ICurrentUser
         var authEnabled = _configuration.GetValue("AuthEnabled", false);
         var entraTokenPresent = HasBearerToken(http);
 
-        var oid = ReadObjectId(http?.User);
-        if (!string.IsNullOrWhiteSpace(oid))
+        var localUserId = ReadLocalUserId(http?.User);
+        if (localUserId is > 0)
+        {
+            _snapshot = await LoadByUserIdAsync(localUserId.Value, cancellationToken);
+            if (_snapshot is null)
+            {
+                _logger.LogInformation(
+                    "CurrentUser miss. Source=localJwt UserId={UserId} (no active users.user_id match)",
+                    localUserId);
+            }
+        }
+
+        var oid = localUserId is null ? ReadObjectId(http?.User) : null;
+        if (_snapshot is null && !string.IsNullOrWhiteSpace(oid))
         {
             _logger.LogInformation("Oid resolution. Oid={Oid}", oid);
             _snapshot = await LoadByEntraIdAsync(oid, cancellationToken);
@@ -68,7 +80,7 @@ public sealed class CurrentUserService : ICurrentUser
                     oid);
             }
         }
-        else
+        else if (_snapshot is null)
         {
             _logger.LogInformation(
                 "Oid resolution. Authenticated={Authenticated} Oid=(none)",
@@ -93,7 +105,8 @@ public sealed class CurrentUserService : ICurrentUser
         {
             _logger.LogInformation(
                 "CurrentUser resolved. Source={Source} UserId={UserId} Email={Email} Role={Role} StudentId={StudentId} StaffId={StaffId}",
-                string.IsNullOrWhiteSpace(oid) ? "lab" : "entra",
+                string.IsNullOrWhiteSpace(oid) && localUserId is null ? "lab"
+                    : localUserId is not null ? "localJwt" : "entra",
                 _snapshot.UserId,
                 _snapshot.Email,
                 _snapshot.Role,
@@ -122,6 +135,23 @@ public sealed class CurrentUserService : ICurrentUser
 
         return http.Request.Path.StartsWithSegments("/hubs/messages")
             && !string.IsNullOrWhiteSpace(http.Request.Query["access_token"].ToString());
+    }
+
+    private static int? ReadLocalUserId(ClaimsPrincipal? principal)
+    {
+        if (principal?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        var raw = principal.FindFirstValue(JwtTokenService.UserIdClaim)
+            ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (int.TryParse(raw, out var userId) && userId > 0)
+        {
+            return userId;
+        }
+
+        return null;
     }
 
     private static string? ReadObjectId(ClaimsPrincipal? principal)

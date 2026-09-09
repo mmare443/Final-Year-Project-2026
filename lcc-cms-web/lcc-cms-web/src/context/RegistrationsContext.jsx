@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import { API_ORIGIN } from "./MockDataContext";
+import { apiFetch } from "../api";
 
 /**
  * REGISTRATIONS CONTEXT — M4.
@@ -19,7 +20,7 @@ export function RegistrationsProvider({ children }) {
     setIsLoading(true);
     try {
       const url = studentId ? `${API_BASE}?studentId=${encodeURIComponent(studentId)}` : API_BASE;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setRegistrations(data);
@@ -35,7 +36,7 @@ export function RegistrationsProvider({ children }) {
   }, []);
 
   const register = async (request) => {
-    const res = await fetch(API_BASE, {
+    const res = await apiFetch(API_BASE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -50,7 +51,7 @@ export function RegistrationsProvider({ children }) {
   };
 
   const dropRegistration = async (id) => {
-    const res = await fetch(`${API_BASE}/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE}/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const message = await res.text().catch(() => null);
       throw new Error(message || `API returned ${res.status}`);
@@ -61,7 +62,7 @@ export function RegistrationsProvider({ children }) {
   };
 
   const decide = async (id, decision, reason) => {
-    const res = await fetch(`${API_BASE}/${id}/decision`, {
+    const res = await apiFetch(`${API_BASE}/${id}/decision`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision, reason }),

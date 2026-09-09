@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMockAuth, ROLES, ROLE_LABELS, JOB_TITLES } from "../context/MockAuthContext";
+import { useMockAuth, ROLES } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
 import lccLogo from "../assets/lcc-logo.png";
 import "./Login.css";
@@ -14,24 +14,25 @@ const ROLE_ROUTES = {
 };
 
 export default function Login() {
-  const { signIn } = useMockAuth();
+  const { login } = useMockAuth();
   const navigate = useNavigate();
-  const [expandedRole, setExpandedRole] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSelectRole = (role) => {
-    // Registrar/Admin has job-title sub-choices (UI only, see
-    // MockAuthContext's header comment) — expand instead of navigating.
-    if (role === ROLES.REGISTRAR_ADMIN) {
-      setExpandedRole(expandedRole === role ? null : role);
-      return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const role = await login(email, password);
+      navigate(ROLE_ROUTES[role] || "/unauthorized");
+    } catch (err) {
+      setError(err.message || "Sign in failed.");
+    } finally {
+      setSubmitting(false);
     }
-    signIn(role);
-    navigate(ROLE_ROUTES[role]);
-  };
-
-  const handleSelectJobTitle = (jobTitle) => {
-    signIn(ROLES.REGISTRAR_ADMIN, jobTitle);
-    navigate(ROLE_ROUTES[ROLES.REGISTRAR_ADMIN]);
   };
 
   return (
@@ -40,45 +41,38 @@ export default function Login() {
         <img src={lccLogo} alt="Lutheran Church College, Banz" className="login-logo-img" />
         <h1>Welcome Back</h1>
         <p className="login-intro">
-          Sign in with your LCC account to access the appropriate College portal.
+          Sign in with your LCC email and password to open the College portal.
         </p>
 
-        <div className="mock-banner">
-          ⚠ Development mode — real Microsoft sign-in isn't wired up yet.
-          Pick a role below to preview that portal.
-        </div>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label className="login-label" htmlFor="login-email">Email</label>
+          <input
+            id="login-email"
+            type="email"
+            name="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-        <div className="role-list">
-          {Object.values(ROLES).map((role) => (
-            <div key={role}>
-              <button
-                className="role-btn"
-                onClick={() => handleSelectRole(role)}
-              >
-                Continue as {ROLE_LABELS[role]}
-                {role === ROLES.REGISTRAR_ADMIN && (
-                  <span className="role-btn-hint">
-                    {expandedRole === role ? "▲" : "▼"}
-                  </span>
-                )}
-              </button>
+          <label className="login-label" htmlFor="login-password">Password</label>
+          <input
+            id="login-password"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
-              {role === ROLES.REGISTRAR_ADMIN && expandedRole === role && (
-                <div className="job-title-list">
-                  {Object.values(JOB_TITLES).map((title) => (
-                    <button
-                      key={title}
-                      className="job-title-btn"
-                      onClick={() => handleSelectJobTitle(title)}
-                    >
-                      {title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+          {error && <p className="login-error">{error}</p>}
+
+          <button className="login-submit" type="submit" disabled={submitting}>
+            {submitting ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
 
         <a href={PUBLIC_SITE_URL} className="back-link">← Return to LCC website</a>
       </div>

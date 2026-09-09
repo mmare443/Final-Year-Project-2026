@@ -9,21 +9,64 @@ using Microsoft.Identity.Web;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------
-// Authentication — bearer token (JWT) validation via Entra ID.
+// Authentication — local JWT (email/password). Entra remains optional.
 // ---------------------------------------------------------------
 var authEnabled = builder.Configuration.GetValue<bool>("AuthEnabled", false);
 var azureAdConfigured = IsAzureAdConfigured(builder.Configuration);
+var localJwtConfigured = LCC_CMS_Api.Services.JwtTokenService.IsConfigured(builder.Configuration);
 
-if (authEnabled && (!azureAdConfigured || !IsAzureAdAudienceConfigured(builder.Configuration)))
+if (authEnabled && !localJwtConfigured && (!azureAdConfigured || !IsAzureAdAudienceConfigured(builder.Configuration)))
 {
     throw new InvalidOperationException(
-        "AuthEnabled=true requires valid AzureAd:TenantId, AzureAd:ClientId, and AzureAd:Audience settings.");
+        "AuthEnabled=true requires JwtSettings:Key (32+ chars) or valid AzureAd:TenantId, AzureAd:ClientId, and AzureAd:Audience.");
 }
 
-// JWT only when AzureAd has a real tenant + API client id (GUIDs).
-// Placeholders such as "<your-tenant-id>" must not call Microsoft.Identity.Web
-// or startup throws IDW10106. Lab identity is X-User-Id (AuthEnabled=false).
-if (azureAdConfigured)
+builder.Services.Configure<LCC_CMS_Api.Services.JwtSettings>(
+    builder.Configuration.GetSection(LCC_CMS_Api.Services.JwtSettings.SectionName));
+builder.Services.AddSingleton<Microsoft.AspNetCore.Identity.IPasswordHasher<User>, Microsoft.AspNetCore.Identity.PasswordHasher<User>>();
+
+if (localJwtConfigured)
+{
+    builder.Services.AddSingleton<LCC_CMS_Api.Services.JwtTokenService>();
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            var jwt = builder.Configuration.GetSection(LCC_CMS_Api.Services.JwtSettings.SectionName)
+                .Get<LCC_CMS_Api.Services.JwtSettings>() ?? new LCC_CMS_Api.Services.JwtSettings();
+            options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = jwt.Issuer,
+                ValidateAudience = true,
+                ValidAudience = jwt.Audience,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                    System.Text.Encoding.UTF8.GetBytes(jwt.Key)),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(1),
+                RoleClaimType = ClaimTypes.Role,
+                NameClaimType = ClaimTypes.Email,
+            };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    if (!string.IsNullOrEmpty(accessToken)
+                        && context.HttpContext.Request.Path.StartsWithSegments("/hubs/messages"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
+            };
+        });
+
+    builder.Services.AddScoped<IClaimsTransformation, LCC_CMS_Api.Services.EntraRoleClaimsTransformation>();
+}
+else if (azureAdConfigured)
 {
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
@@ -92,7 +135,7 @@ builder.Services.AddAuthorization(options =>
     // Deny-by-default only when JWT is registered. Lab mode has no
     // DefaultChallengeScheme; a global FallbackPolicy would throw
     // InvalidOperationException on every request (net8 auto UseAuthorization).
-    if (authEnabled && azureAdConfigured)
+    if (authEnabled && (localJwtConfigured || azureAdConfigured))
     {
         options.FallbackPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
@@ -145,7 +188,12 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-if (!azureAdConfigured)
+if (localJwtConfigured)
+{
+    app.Logger.LogInformation("Local JWT authentication is enabled.");
+    LCC_CMS_Api.Services.LabPasswordSeeder.SeedAsync(app.Services, app.Logger).GetAwaiter().GetResult();
+}
+else if (!azureAdConfigured)
 {
     app.Logger.LogInformation(
         "AzureAd is not configured. Skipping JWT. Lab identity uses X-User-Id (AuthEnabled={AuthEnabled}).",
@@ -163,15 +211,13 @@ app.UseCors("SpaClient");
 // Static files
 app.UseStaticFiles();
 
-if (azureAdConfigured)
+if (localJwtConfigured || azureAdConfigured)
 {
     app.UseAuthentication();
 }
 
-if (authEnabled)
-{
-    app.UseAuthorization();
-}
+app.UseAuthorization();
+
 
 app.Use(async (context, next) =>
 {

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import { API_ORIGIN } from "./MockDataContext";
+import { apiFetch } from "../api";
 
 /**
  * STUDENTS CONTEXT — M2, wired to the real ASP.NET Core Web API.
@@ -27,7 +28,7 @@ export function StudentsProvider({ children }) {
   const fetchMyProfile = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/students/me`);
+      const res = await apiFetch(`${API_BASE}/students/me`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setMyProfile(data);
@@ -45,7 +46,7 @@ export function StudentsProvider({ children }) {
   }, []);
 
   const updateMyProfile = async (edits) => {
-    const res = await fetch(`${API_BASE}/students/me`, {
+    const res = await apiFetch(`${API_BASE}/students/me`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(edits),
@@ -62,7 +63,7 @@ export function StudentsProvider({ children }) {
   const uploadMyPhoto = async (file) => {
     const formData = new FormData();
     formData.append("photo", file);
-    const res = await fetch(`${API_BASE}/students/me/photo`, {
+    const res = await apiFetch(`${API_BASE}/students/me/photo`, {
       method: "POST",
       body: formData,
     });
@@ -78,7 +79,7 @@ export function StudentsProvider({ children }) {
   const fetchAllStudents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/students`);
+      const res = await apiFetch(`${API_BASE}/students`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setAllStudents(data);
@@ -94,7 +95,7 @@ export function StudentsProvider({ children }) {
   }, []);
 
   const correctStudentProfile = async (id, edits) => {
-    const res = await fetch(`${API_BASE}/students/${id}`, {
+    const res = await apiFetch(`${API_BASE}/students/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(edits),

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import { API_ORIGIN } from "./MockDataContext";
+import { apiFetch } from "../api";
 
 /**
  * LEARNING CONTEXT — M6.
@@ -31,7 +32,7 @@ export function LearningProvider({ children }) {
       if (allocationId) params.set("allocationId", allocationId);
       if (studentId) params.set("studentId", studentId);
       const qs = params.toString();
-      const res = await fetch(`${API_BASE}/materials${qs ? `?${qs}` : ""}`);
+      const res = await apiFetch(`${API_BASE}/materials${qs ? `?${qs}` : ""}`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setMaterials(data);
@@ -49,7 +50,7 @@ export function LearningProvider({ children }) {
       if (allocationId) params.set("allocationId", allocationId);
       if (studentId) params.set("studentId", studentId);
       const qs = params.toString();
-      const res = await fetch(`${API_BASE}/assignments${qs ? `?${qs}` : ""}`);
+      const res = await apiFetch(`${API_BASE}/assignments${qs ? `?${qs}` : ""}`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setAssignments(data);
@@ -62,7 +63,7 @@ export function LearningProvider({ children }) {
   }, []);
 
   const fetchSubmissions = useCallback(async (assignmentId) => {
-    const res = await fetch(`${API_BASE}/assignments/${assignmentId}/submissions`);
+    const res = await apiFetch(`${API_BASE}/assignments/${assignmentId}/submissions`);
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     const data = await res.json();
     setSubmissions(data);
@@ -71,7 +72,7 @@ export function LearningProvider({ children }) {
 
   const fetchMySubmissions = useCallback(async (studentId) => {
     try {
-      const res = await fetch(`${API_BASE}/submissions?studentId=${encodeURIComponent(studentId)}`);
+      const res = await apiFetch(`${API_BASE}/submissions?studentId=${encodeURIComponent(studentId)}`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setSubmissions(data);
@@ -88,7 +89,7 @@ export function LearningProvider({ children }) {
       const url = studentId
         ? `${API_BASE}/summary?studentId=${encodeURIComponent(studentId)}`
         : `${API_BASE}/summary`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setSummary(data);
@@ -104,7 +105,7 @@ export function LearningProvider({ children }) {
     form.append("allocationId", allocationId);
     form.append("title", title);
     form.append("file", file);
-    const res = await fetch(`${API_BASE}/materials`, { method: "POST", body: form });
+    const res = await apiFetch(`${API_BASE}/materials`, { method: "POST", body: form });
     if (!res.ok) {
       const message = await res.text().catch(() => null);
       throw new Error(message || `API returned ${res.status}`);
@@ -115,13 +116,13 @@ export function LearningProvider({ children }) {
   };
 
   const deleteMaterial = async (id) => {
-    const res = await fetch(`${API_BASE}/materials/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE}/materials/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     setMaterials((prev) => prev.filter((m) => m.id !== id));
   };
 
   const createAssignment = async (payload) => {
-    const res = await fetch(`${API_BASE}/assignments`, {
+    const res = await apiFetch(`${API_BASE}/assignments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -136,7 +137,7 @@ export function LearningProvider({ children }) {
   };
 
   const updateAssignment = async (id, payload) => {
-    const res = await fetch(`${API_BASE}/assignments/${id}`, {
+    const res = await apiFetch(`${API_BASE}/assignments/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -151,7 +152,7 @@ export function LearningProvider({ children }) {
   };
 
   const deleteAssignment = async (id) => {
-    const res = await fetch(`${API_BASE}/assignments/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE}/assignments/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     setAssignments((prev) => prev.filter((a) => a.id !== id));
   };
@@ -160,7 +161,7 @@ export function LearningProvider({ children }) {
     const form = new FormData();
     form.append("studentId", studentId);
     form.append("file", file);
-    const res = await fetch(`${API_BASE}/assignments/${assignmentId}/submissions`, {
+    const res = await apiFetch(`${API_BASE}/assignments/${assignmentId}/submissions`, {
       method: "POST",
       body: form,
     });
@@ -177,7 +178,7 @@ export function LearningProvider({ children }) {
   };
 
   const gradeSubmission = async (id, marksAwarded, feedback) => {
-    const res = await fetch(`${API_BASE}/submissions/${id}/grade`, {
+    const res = await apiFetch(`${API_BASE}/submissions/${id}/grade`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ marksAwarded, feedback }),

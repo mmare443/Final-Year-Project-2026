@@ -1000,6 +1000,9 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.Email)
                 .HasMaxLength(255)
                 .HasColumnName("email");
+            entity.Property(e => e.PasswordHash)
+                .HasMaxLength(500)
+                .HasColumnName("password_hash");
             entity.Property(e => e.EntraId)
                 .HasMaxLength(36)
                 .HasColumnName("entra_id");
