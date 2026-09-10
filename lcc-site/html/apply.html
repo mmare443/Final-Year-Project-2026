@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description"
+          content="Apply to Lutheran Church College, Banz. Entry requirements, documents, and online application.">
+
+    <title>Apply | Lutheran Church College</title>
+
+    <link rel="icon"
+          type="image/png"
+          href="../images/logo/lcc-logo.png">
+
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/header.css">
+    <link rel="stylesheet" href="../css/apply-page.css">
+</head>
+
+<body>
+
+    <header class="site-header">
+        <div class="container header-inner">
+
+            <a href="../index.html"
+               class="site-logo"
+               aria-label="Lutheran Church College Home">
+                <img src="../images/logo/lcc-logo.png"
+                     alt="Lutheran Church College Logo">
+                <span>Lutheran Church College</span>
+            </a>
+
+            <button class="menu-toggle"
+                    type="button"
+                    aria-label="Open navigation menu"
+                    aria-expanded="false"
+                    aria-controls="main-navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <nav id="main-navigation"
+                 class="main-nav"
+                 aria-label="Primary navigation">
+
+                <a href="../index.html">Home</a>
+                <a href="about.html">About LCC</a>
+                <a href="programmes.html">Programmes</a>
+                <a href="admissions.html">Admissions</a>
+                <a href="news.html">News</a>
+                <a href="contact.html">Contact</a>
+
+                <a href="apply.html" class="nav-apply" aria-current="page">
+                    Apply Now
+                </a>
+
+                <a href="login.html" class="nav-signin">
+                    <i class="fa-solid fa-right-to-bracket"
+                       aria-hidden="true"></i>
+                    <span>Sign In</span>
+                </a>
+            </nav>
+
+        </div>
+    </header>
+
+    <main>
+        <section class="section" aria-labelledby="apply-page-title">
+            <div class="container">
+
+                <div class="section-heading">
+                    <span class="section-eyebrow">ADMISSIONS</span>
+                    <h1 id="apply-page-title">Apply to Lutheran Church College</h1>
+                    <p>
+                        Review the requirements, then submit your application
+                        and documents. Incomplete applications are not accepted.
+                    </p>
+                </div>
+
+                <div class="card-grid apply-info-grid">
+                    <article class="info-card">
+                        <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
+                        <h2>Entry requirements</h2>
+                        <ul>
+                            <li>Grade 10 Certificate</li>
+                            <li>Grade 12 Certificate</li>
+                            <li>K30 application fee (deposit slip)</li>
+                            <li>Letter of Interest</li>
+                            <li>Church pastor and community leader references</li>
+                        </ul>
+                    </article>
+
+                    <article class="info-card">
+                        <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
+                        <h2>Required documents</h2>
+                        <ul>
+                            <li>Letter of Interest</li>
+                            <li>Passport-size photo (JPG or PNG)</li>
+                            <li>Application fee deposit slip (K30)</li>
+                            <li>Grade 10 and Grade 12 certificates</li>
+                            <li>Reference — Church Pastor</li>
+                            <li>Reference — Community Leader</li>
+                            <li>Work reference (if applicable)</li>
+                        </ul>
+                        <p>PDF, JPG, or PNG. 5 MB maximum per file.</p>
+                    </article>
+
+                    <article class="info-card">
+                        <i class="fa-solid fa-list-ol" aria-hidden="true"></i>
+                        <h2>Application process</h2>
+                        <ol>
+                            <li>Choose a published programme.</li>
+                            <li>Complete the form and attach documents.</li>
+                            <li>The Registrar reviews your application.</li>
+                            <li>If approved, you receive enrolment access.</li>
+                        </ol>
+                        <a href="programmes.html">View programmes</a>
+                    </article>
+                </div>
+
+                <div class="section-cta">
+                    <a href="#application-form" class="btn btn-primary apply-pulse">
+                        Apply Now
+                    </a>
+                    <a href="programmes.html" class="btn btn-secondary">
+                        View Programmes
+                    </a>
+                    <a href="../index.html" class="btn btn-secondary">
+                        Home
+                    </a>
+                </div>
+
+                <div id="application-success" class="apply-success" hidden></div>
+
+                <form id="application-form" class="apply-form-card" novalidate>
+                    <span class="section-eyebrow">Application CTA</span>
+                    <h2>Submit your application</h2>
+                    <p>
+                        Programmes are loaded from the College academic
+                        structure. This is the same list the Registrar maintains.
+                    </p>
+
+                    <p id="apply-form-status" class="programmes-status" hidden></p>
+                    <p id="apply-form-error" class="apply-error" hidden></p>
+
+                    <label>
+                        Full name
+                        <input type="text" name="fullName" maxlength="150" required>
+                    </label>
+
+                    <label>
+                        Email address
+                        <input type="email" name="email" maxlength="255" required>
+                    </label>
+
+                    <label>
+                        Phone number
+                        <input type="tel" name="phone" maxlength="30" required>
+                    </label>
+
+                    <label>
+                        Programme of study
+                        <select name="programmeId" id="programme-select" required>
+                            <option value="">Loading programmes…</option>
+                        </select>
+                    </label>
+
+                    <fieldset class="apply-docs">
+                        <legend>Required documents</legend>
+
+                        <label>
+                            Letter of Interest <span class="required-star">*</span>
+                            <input type="file" name="letterOfInterest" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </label>
+                        <label>
+                            Passport-size photo <span class="required-star">*</span>
+                            <input type="file" name="passportPhoto" accept=".jpg,.jpeg,.png" required>
+                        </label>
+                        <label>
+                            Application fee deposit slip (K30) <span class="required-star">*</span>
+                            <input type="file" name="feeDepositSlip" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </label>
+                        <label>
+                            Grade 10 Certificate <span class="required-star">*</span>
+                            <input type="file" name="grade10Certificate" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </label>
+                        <label>
+                            Grade 12 Certificate <span class="required-star">*</span>
+                            <input type="file" name="grade12Certificate" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </label>
+                        <label>
+                            Reference letter — Church Pastor <span class="required-star">*</span>
+                            <input type="file" name="referenceLetter1" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </label>
+                        <label>
+                            Reference letter — Community Leader <span class="required-star">*</span>
+                            <input type="file" name="referenceLetter2" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </label>
+                        <label>
+                            Work reference (if applicable)
+                            <input type="file" name="workReference" accept=".pdf,.jpg,.jpeg,.png">
+                        </label>
+                    </fieldset>
+
+                    <button type="submit" class="btn btn-primary" id="apply-submit">
+                        Submit application
+                    </button>
+                </form>
+
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+
+        <div class="container footer-grid">
+
+            <div class="footer-brand">
+                <img src="../images/logo/lcc-logo.png"
+                     alt="Lutheran Church College Logo">
+
+                <h3>Lutheran Church College</h3>
+
+                <p>
+                    Banz • Jiwaka Province • Papua New Guinea
+                </p>
+            </div>
+
+            <div class="footer-links">
+                <h4>Quick Navigation</h4>
+                <a href="../index.html">Home</a>
+                <a href="programmes.html">Programmes</a>
+                <a href="apply.html">Apply Now</a>
+                <a href="admissions.html">Admissions</a>
+                <a href="contact.html">Contact</a>
+            </div>
+
+            <div class="footer-contact">
+                <h4>Contact</h4>
+                <p>Phone: [College Phone]</p>
+                <p>Email: [College Email]</p>
+                <p>Address: Banz, Jiwaka Province, PNG</p>
+            </div>
+
+        </div>
+
+        <div class="footer-bottom">
+            <div class="container">
+                <p>
+                    &copy; 2026 Lutheran Church College.
+                    All rights reserved.
+                </p>
+            </div>
+        </div>
+
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/apply.js"></script>
+
+</body>
+</html>

@@ -75,6 +75,42 @@ a {
     color: var(--text-light);
 }
 
+.section-heading h1 {
+    margin: 0 0 12px;
+    color: var(--secondary);
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    line-height: 1.2;
+}
+
+.programmes-status {
+    text-align: center;
+    color: var(--text-light);
+}
+
+.faculty-block {
+    margin-bottom: 48px;
+}
+
+.faculty-block h2 {
+    margin: 0 0 16px;
+    color: var(--secondary);
+    font-size: 1.45rem;
+}
+
+.department-block {
+    margin: 0 0 28px;
+}
+
+.department-block h3 {
+    margin: 0 0 14px;
+    color: var(--text);
+    font-size: 1.05rem;
+}
+
+.programme-duration {
+    margin-bottom: 14px;
+}
+
 .btn {
     display: inline-flex;
     align-items: center;

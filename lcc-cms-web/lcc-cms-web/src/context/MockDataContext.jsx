@@ -92,6 +92,9 @@ export function MockDataProvider({ children }) {
     formData.append("email", details.email);
     formData.append("phone", details.phone);
     formData.append("programme", details.programme);
+    if (details.programmeId) {
+      formData.append("programmeId", details.programmeId);
+    }
 
     for (const [key, file] of Object.entries(documents)) {
       if (file) formData.append(key, file);

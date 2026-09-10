@@ -175,7 +175,7 @@ builder.Services.AddSingleton<LCC_CMS_Api.Services.IEntraUserProvisioner, LCC_CM
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SpaClient", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5173", "http://localhost:8899")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials());

@@ -13,11 +13,16 @@ import Apply from "./pages/Apply";
 import Unauthorized from "./pages/Unauthorized";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentProfile from "./pages/StudentProfile";
+import MyCourses from "./pages/MyCourses";
+import Results from "./pages/Results";
 import LecturerDashboard from "./pages/LecturerDashboard";
 import HoDDashboard from "./pages/HoDDashboard";
 import RegistrarAdminDashboard from "./pages/RegistrarAdminDashboard";
 import StudentRecords from "./pages/StudentRecords";
 import AcademicStructure from "./pages/AcademicStructure";
+import CourseRegistrations from "./pages/CourseRegistrations";
+import StaffManagement from "./pages/StaffManagement";
+import AccommodationWelfare from "./pages/AccommodationWelfare";
 import ManagementPrincipalDashboard from "./pages/ManagementPrincipalDashboard";
 import Attendance from "./pages/Attendance";
 import Learning from "./pages/Learning";
@@ -54,6 +59,14 @@ function App() {
                     }
                   />
                   <Route
+                    path="/student/courses"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.STUDENT}>
+                        <MyCourses />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/student/attendance"
                     element={
                       <ProtectedRoute allowedRole={ROLES.STUDENT}>
@@ -66,6 +79,14 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.STUDENT}>
                         <Learning />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/student/results"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.STUDENT}>
+                        <Results />
                       </ProtectedRoute>
                     }
                   />
@@ -130,6 +151,30 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
                         <AcademicStructure />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/registrar/registrations"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
+                        <CourseRegistrations />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/registrar/staff"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
+                        <StaffManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/registrar/accommodation"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
+                        <AccommodationWelfare />
                       </ProtectedRoute>
                     }
                   />

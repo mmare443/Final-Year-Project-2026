@@ -1,17 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useStudents } from "../context/StudentsContext";
+import { STUDENT_NAV } from "./Attendance";
 import { API_ORIGIN } from "../context/MockDataContext";
 import "./StudentProfile.css";
-
-const NAV = [
-  { label: "Overview", path: "/student" },
-  "My Courses",
-  { label: "Attendance", path: "/student/attendance" },
-  { label: "Assignments", path: "/student/assignments" },
-  "Results",
-  { label: "Profile", path: "/student/profile" },
-];
 
 export default function StudentProfile() {
   const { myProfile, isLoading, apiError, fetchMyProfile, updateMyProfile, uploadMyPhoto } = useStudents();
@@ -81,7 +73,7 @@ export default function StudentProfile() {
 
   if (apiError) {
     return (
-      <DashboardLayout title="My Profile" navItems={NAV}>
+      <DashboardLayout title="My Profile" navItems={STUDENT_NAV}>
         <div className="profile-error">{apiError}</div>
       </DashboardLayout>
     );
@@ -89,14 +81,14 @@ export default function StudentProfile() {
 
   if (isLoading || !myProfile || !form) {
     return (
-      <DashboardLayout title="My Profile" navItems={NAV}>
+      <DashboardLayout title="My Profile" navItems={STUDENT_NAV}>
         <p style={{ color: "var(--text-light)" }}>Loading your profile…</p>
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout title="My Profile" navItems={NAV}>
+    <DashboardLayout title="My Profile" navItems={STUDENT_NAV}>
       <div className="profile-layout">
         <div className="profile-photo-card">
           <button type="button" className="profile-photo-btn" onClick={handlePhotoClick}>

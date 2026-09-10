@@ -27,10 +27,10 @@ const HOD_NAV = [
 
 const STUDENT_NAV = [
   { label: "Overview", path: "/student" },
-  "My Courses",
+  { label: "My Courses", path: "/student/courses" },
   { label: "Attendance", path: "/student/attendance" },
   { label: "Assignments", path: "/student/assignments" },
-  "Results",
+  { label: "Results", path: "/student/results" },
   { label: "Profile", path: "/student/profile" },
 ];
 

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description"
+          content="Programmes offered at Lutheran Church College, Banz.">
+
+    <title>Programmes | Lutheran Church College</title>
+
+    <link rel="icon"
+          type="image/png"
+          href="../images/logo/lcc-logo.png">
+
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/header.css">
+</head>
+
+<body>
+
+    <header class="site-header">
+        <div class="container header-inner">
+
+            <a href="../index.html"
+               class="site-logo"
+               aria-label="Lutheran Church College Home">
+                <img src="../images/logo/lcc-logo.png"
+                     alt="Lutheran Church College Logo">
+                <span>Lutheran Church College</span>
+            </a>
+
+            <button class="menu-toggle"
+                    type="button"
+                    aria-label="Open navigation menu"
+                    aria-expanded="false"
+                    aria-controls="main-navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <nav id="main-navigation"
+                 class="main-nav"
+                 aria-label="Primary navigation">
+
+                <a href="../index.html">Home</a>
+                <a href="about.html">About LCC</a>
+                <a href="programmes.html" aria-current="page">Programmes</a>
+                <a href="admissions.html">Admissions</a>
+                <a href="news.html">News</a>
+                <a href="contact.html">Contact</a>
+
+                <a href="apply.html" class="nav-apply">
+                    Apply Now
+                </a>
+
+                <a href="login.html" class="nav-signin">
+                    <i class="fa-solid fa-right-to-bracket"
+                       aria-hidden="true"></i>
+                    <span>Sign In</span>
+                </a>
+            </nav>
+
+        </div>
+    </header>
+
+    <main>
+        <section class="section"
+                 aria-labelledby="programmes-page-title">
+            <div class="container">
+
+                <div class="section-heading">
+                    <span class="section-eyebrow">PROGRAMMES</span>
+                    <h1 id="programmes-page-title">Programmes Offered</h1>
+                    <p>
+                        Diploma and Certificate programmes grouped by
+                        faculty and department, as published in the
+                        College academic structure.
+                    </p>
+                </div>
+
+                <p id="programmes-status" class="programmes-status">
+                    Loading programmes…
+                </p>
+
+                <div id="programmes-root"></div>
+
+                <div class="section-cta">
+                    <a href="apply.html" class="btn btn-primary apply-pulse">
+                        Apply Now
+                    </a>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+
+        <div class="container footer-grid">
+
+            <div class="footer-brand">
+                <img src="../images/logo/lcc-logo.png"
+                     alt="Lutheran Church College Logo">
+
+                <h3>Lutheran Church College</h3>
+
+                <p>
+                    Banz • Jiwaka Province • Papua New Guinea
+                </p>
+            </div>
+
+            <div class="footer-links">
+                <h4>Quick Navigation</h4>
+                <a href="about.html">About LCC</a>
+                <a href="programmes.html">Programmes</a>
+                <a href="admissions.html">Admissions</a>
+                <a href="news.html">News</a>
+                <a href="contact.html">Contact</a>
+            </div>
+
+            <div class="footer-contact">
+                <h4>Contact</h4>
+                <p>Phone: [College Phone]</p>
+                <p>Email: [College Email]</p>
+                <p>Address: Banz, Jiwaka Province, PNG</p>
+            </div>
+
+        </div>
+
+        <div class="footer-bottom">
+            <div class="container">
+                <p>
+                    &copy; 2026 Lutheran Church College.
+                    All rights reserved.
+                </p>
+            </div>
+        </div>
+
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/programmes.js"></script>
+
+</body>
+</html>

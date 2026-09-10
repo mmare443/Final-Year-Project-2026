@@ -1,14 +1,16 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useStudents } from "../context/StudentsContext";
 import { useAttendance } from "../context/AttendanceContext";
 import { useLearning } from "../context/LearningContext";
+import { API_ORIGIN, apiFetch } from "../api";
 import { STUDENT_NAV } from "./Attendance";
 
 export default function StudentDashboard() {
   const { myProfile, fetchMyProfile } = useStudents();
   const { rates, fetchRates } = useAttendance();
   const { summary, fetchSummary } = useLearning();
+  const [cgpa, setCgpa] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -16,6 +18,17 @@ export default function StudentDashboard() {
       if (profile?.id) {
         fetchRates({ studentId: profile.id });
         fetchSummary(profile.id);
+        try {
+          const res = await apiFetch(
+            `${API_ORIGIN}/api/students/${encodeURIComponent(profile.id)}/cgpa`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            setCgpa(data.cgpa);
+          }
+        } catch {
+          setCgpa(null);
+        }
       }
     })();
   }, [myProfile, fetchMyProfile, fetchRates, fetchSummary]);
@@ -45,11 +58,11 @@ export default function StudentDashboard() {
         </div>
         <div className="dash-card">
           <h3>Latest Results</h3>
-          <div className="dash-card-value">—</div>
+          <div className="dash-card-value">{cgpa == null ? "—" : Number(cgpa).toFixed(2)}</div>
         </div>
       </div>
       <p style={{ marginTop: 24, color: "var(--text-light)", fontSize: 13 }}>
-        Attendance (M5) and assignments (M6) are live. Published results follow in M7.
+        Attendance, assignments, courses, and published results are live.
       </p>
     </DashboardLayout>
   );

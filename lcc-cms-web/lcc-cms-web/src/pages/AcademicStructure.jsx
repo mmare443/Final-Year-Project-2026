@@ -1,16 +1,8 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useAcademicStructure } from "../context/AcademicStructureContext";
+import { REGISTRAR_NAV } from "./registrarNav";
 import "./AcademicStructure.css";
-
-const NAV = [
-  { label: "Overview", path: "/registrar" },
-  { label: "Admissions", path: "/registrar" },
-  { label: "Student Records", path: "/registrar/students" },
-  { label: "Academic Structure", path: "/registrar/academic-structure" },
-  { label: "Course Registration", path: "/registrar/registrations" },
-  "Staff Management", "Accommodation & Welfare", "System Administration", "Profile",
-];
 
 const TABS = [
   { key: "faculties", label: "Faculties" },
@@ -230,7 +222,7 @@ export default function AcademicStructure() {
   };
 
   return (
-    <DashboardLayout title="Academic Structure — M3" navItems={NAV}>
+    <DashboardLayout title="Academic Structure — M3" navItems={REGISTRAR_NAV}>
       {apiError && <div className="as-error">{apiError}</div>}
 
       <div className="as-tabs">

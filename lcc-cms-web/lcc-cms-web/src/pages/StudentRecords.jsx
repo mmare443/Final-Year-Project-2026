@@ -1,18 +1,8 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useStudents } from "../context/StudentsContext";
+import { REGISTRAR_NAV } from "./registrarNav";
 import "./StudentRecords.css";
-
-const NAV = [
-  { label: "Overview", path: "/registrar" },
-  { label: "Admissions", path: "/registrar" },
-  { label: "Student Records", path: "/registrar/students" },
-  { label: "Course Registration" },
-  { label: "Staff Management" },
-  { label: "Accommodation & Welfare" },
-  { label: "System Administration" },
-  { label: "Profile" },
-];
 
 export default function StudentRecords() {
   const { allStudents, isLoading, apiError, fetchAllStudents, correctStudentProfile } = useStudents();
@@ -60,7 +50,7 @@ export default function StudentRecords() {
   };
 
   return (
-    <DashboardLayout title="Student Records — Registrar" navItems={NAV}>
+    <DashboardLayout title="Student Records — Registrar" navItems={REGISTRAR_NAV}>
       <p style={{ color: "var(--text-light)", fontSize: 13, marginBottom: 18 }}>
         M2 — correct a student's contact or emergency details on their
         behalf. Academic fields (programme, ID) are set at admission (M1)

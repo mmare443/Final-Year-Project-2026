@@ -2,6 +2,7 @@ import DashboardLayout from "../components/DashboardLayout";
 import AdmissionsQueue from "../components/AdmissionsQueue";
 import { useMockData } from "../context/MockDataContext";
 import { useMockAuth, JOB_TITLES } from "../context/MockAuthContext";
+import { REGISTRAR_NAV } from "./registrarNav";
 
 /**
  * Job-title-based dashboard variants — UI only. Every job title here
@@ -12,14 +13,7 @@ import { useMockAuth, JOB_TITLES } from "../context/MockAuthContext";
  */
 
 const NAV_BY_TITLE = {
-  [JOB_TITLES.REGISTRAR]: [
-    { label: "Overview", path: "/registrar" },
-    { label: "Admissions", path: "/registrar" },
-    { label: "Student Records", path: "/registrar/students" },
-    { label: "Academic Structure", path: "/registrar/academic" },
-    "Course Registration", "Staff Management", "Accommodation & Welfare",
-    "System Administration", "Profile",
-  ],
+  [JOB_TITLES.REGISTRAR]: REGISTRAR_NAV,
   [JOB_TITLES.DEAN_OF_STUDIES]: [
     { label: "Overview", path: "/registrar" },
     { label: "Academic Oversight", path: "/registrar/academic" },
@@ -31,7 +25,9 @@ const NAV_BY_TITLE = {
     { label: "Overview", path: "/registrar" },
     { label: "Admissions", path: "/registrar" },
     { label: "Student Records", path: "/registrar/students" },
-    "Staff Management", "System Administration", "Profile",
+    { label: "Staff Management", path: "/registrar/staff" },
+    "System Administration",
+    "Profile",
   ],
   [JOB_TITLES.ACCOUNTS]: [
     { label: "Overview", path: "/registrar" },

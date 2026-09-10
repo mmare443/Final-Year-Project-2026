@@ -1,0 +1,112 @@
+.apply-info-grid h2 {
+    font-size: 1.1rem;
+}
+
+.apply-info-grid ul,
+.apply-info-grid ol {
+    margin: 0 0 12px;
+    padding-left: 1.15rem;
+    color: var(--text-light);
+}
+
+.apply-info-grid li {
+    margin-bottom: 6px;
+}
+
+.apply-form-card {
+    max-width: 720px;
+    margin: 48px auto 0;
+    padding: 32px 28px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.apply-form-card h2 {
+    margin: 0;
+    color: var(--secondary);
+}
+
+.apply-form-card > p {
+    margin: 0;
+    color: var(--text-light);
+}
+
+.apply-form-card label,
+.apply-docs label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--secondary);
+}
+
+.apply-form-card input,
+.apply-form-card select {
+    font-family: var(--font-main);
+    font-size: 14px;
+    font-weight: 400;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+}
+
+.apply-docs {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 8px 0 0;
+    padding: 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.apply-docs legend {
+    padding: 0;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--secondary);
+}
+
+.required-star {
+    color: #C0392B;
+}
+
+.apply-error {
+    background: #FDEAEA;
+    border: 1px solid #C0392B;
+    color: #C0392B;
+    font-size: 13px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0;
+}
+
+.apply-success {
+    max-width: 720px;
+    margin: 32px auto 0;
+    padding: 28px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.apply-success h2 {
+    margin: 0 0 12px;
+    color: var(--secondary);
+}
+
+@media (max-width: 900px) {
+    .apply-info-grid {
+        grid-template-columns: 1fr;
+    }
+}

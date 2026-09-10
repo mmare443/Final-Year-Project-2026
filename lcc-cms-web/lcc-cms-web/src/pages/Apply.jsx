@@ -1,26 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMockData } from "../context/MockDataContext";
+import { API_ORIGIN, apiFetch } from "../api";
 import { PUBLIC_SITE_URL } from "../config";
 import "./Apply.css";
-
-// Matches Section 1 of LCCB's actual paper Application Form for 2027
-// Enrolment — replaces the earlier placeholder Bachelor's-degree list,
-// which didn't match what LCCB actually offers (Diploma/Certificate
-// programmes in three fields, not degrees).
-const PROGRAMMES = [
-  "Diploma in Applied Ministry",
-  "Diploma in Tropical Agriculture",
-  "Diploma in Business Administration and Management",
-  "Certificate in Applied Ministry",
-  "Certificate in Tropical Agriculture",
-  "Certificate in Business Administration and Management",
-];
 
 const EMPTY_FORM = {
   fullName: "",
   email: "",
   phone: "",
-  programme: PROGRAMMES[0],
+  programmeId: "",
+  programme: "",
 };
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB — must match the backend's limit
@@ -45,11 +34,26 @@ const DOCUMENT_FIELDS = [
 export default function Apply() {
   const { addApplication } = useMockData();
   const [form, setForm] = useState(EMPTY_FORM);
+  const [programmes, setProgrammes] = useState([]);
   const [documents, setDocuments] = useState({});
   const [fileErrors, setFileErrors] = useState({});
   const [submitted, setSubmitted] = useState(null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch(`${API_ORIGIN}/api/academic-structure/programmes`);
+        if (!res.ok) throw new Error(`API returned ${res.status}`);
+        const rows = await res.json();
+        rows.sort((a, b) => String(a.programmeName).localeCompare(String(b.programmeName)));
+        setProgrammes(rows);
+      } catch {
+        setError("Couldn't load programmes. Make sure the backend API is running.");
+      }
+    })();
+  }, []);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -84,7 +88,12 @@ export default function Apply() {
     setSubmitting(true);
     setError(null);
     try {
-      const record = await addApplication(form, documents);
+      const selected = programmes.find((p) => String(p.programmeId) === String(form.programmeId));
+      const record = await addApplication({
+        ...form,
+        programme: selected?.programmeName || form.programme,
+        programmeId: form.programmeId,
+      }, documents);
       setSubmitted(record);
       setForm(EMPTY_FORM);
       setDocuments({});
@@ -166,9 +175,10 @@ export default function Apply() {
 
           <label>
             Programme of Study
-            <select name="programme" value={form.programme} onChange={handleChange}>
-              {PROGRAMMES.map((p) => (
-                <option key={p} value={p}>{p}</option>
+            <select name="programmeId" value={form.programmeId} onChange={handleChange} required>
+              <option value="">Select a programme…</option>
+              {programmes.map((p) => (
+                <option key={p.programmeId} value={p.programmeId}>{p.programmeName}</option>
               ))}
             </select>
           </label>

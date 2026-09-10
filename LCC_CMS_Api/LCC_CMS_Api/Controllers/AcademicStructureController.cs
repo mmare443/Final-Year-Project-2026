@@ -34,6 +34,7 @@ public class AcademicStructureController : ControllerBase
     }
 
     // --- Faculties ---
+    [AllowAnonymous]
     [HttpGet("faculties")]
     public async Task<IActionResult> GetFaculties()
     {
@@ -67,6 +68,7 @@ public class AcademicStructureController : ControllerBase
     }
 
     // --- Departments ---
+    [AllowAnonymous]
     [HttpGet("departments")]
     public async Task<IActionResult> GetDepartments()
     {
@@ -116,6 +118,7 @@ public class AcademicStructureController : ControllerBase
     }
 
     // --- Programmes ---
+    [AllowAnonymous]
     [HttpGet("programmes")]
     public async Task<IActionResult> GetProgrammes()
     {
