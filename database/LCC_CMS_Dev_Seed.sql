@@ -25,12 +25,20 @@ BEGIN TRANSACTION;
 
     /* ----- 1. Academic structure ----- */
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.faculties WHERE faculty_name = N'Faculty of Applied Studies')
+    IF NOT EXISTS (SELECT 1 FROM dbo.faculties WHERE faculty_name = N'Faculty of Business Studies')
+        AND NOT EXISTS (SELECT 1 FROM dbo.faculties WHERE faculty_name = N'Faculty of Applied Studies')
         INSERT INTO dbo.faculties (faculty_name)
-        VALUES (N'Faculty of Applied Studies');
+        VALUES (N'Faculty of Business Studies');
+
+    UPDATE dbo.faculties
+    SET faculty_name = N'Faculty of Business Studies'
+    WHERE faculty_name = N'Faculty of Applied Studies'
+      AND NOT EXISTS (
+          SELECT 1 FROM dbo.faculties WHERE faculty_name = N'Faculty of Business Studies'
+      );
 
     DECLARE @faculty_id INT =
-        (SELECT faculty_id FROM dbo.faculties WHERE faculty_name = N'Faculty of Applied Studies');
+        (SELECT faculty_id FROM dbo.faculties WHERE faculty_name = N'Faculty of Business Studies');
 
     IF NOT EXISTS (
         SELECT 1 FROM dbo.departments
@@ -55,6 +63,78 @@ BEGIN TRANSACTION;
         (SELECT programme_id FROM dbo.programmes
          WHERE department_id = @department_id
            AND programme_name = N'Diploma in Business Administration and Management');
+
+    IF NOT EXISTS (
+        SELECT 1 FROM dbo.programmes
+        WHERE department_id = @department_id
+          AND programme_name = N'Certificate in Business Administration and Management'
+    )
+        INSERT INTO dbo.programmes (department_id, programme_name, duration_years)
+        VALUES (@department_id, N'Certificate in Business Administration and Management', 1.0);
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.faculties WHERE faculty_name = N'Faculty of Ministry Studies')
+        INSERT INTO dbo.faculties (faculty_name)
+        VALUES (N'Faculty of Ministry Studies');
+
+    DECLARE @fac_ministry INT =
+        (SELECT faculty_id FROM dbo.faculties WHERE faculty_name = N'Faculty of Ministry Studies');
+
+    IF NOT EXISTS (
+        SELECT 1 FROM dbo.departments
+        WHERE faculty_id = @fac_ministry AND department_name = N'Department of Applied Ministry'
+    )
+        INSERT INTO dbo.departments (faculty_id, department_name)
+        VALUES (@fac_ministry, N'Department of Applied Ministry');
+
+    DECLARE @dept_ministry INT =
+        (SELECT department_id FROM dbo.departments
+         WHERE faculty_id = @fac_ministry AND department_name = N'Department of Applied Ministry');
+
+    IF NOT EXISTS (
+        SELECT 1 FROM dbo.programmes
+        WHERE department_id = @dept_ministry AND programme_name = N'Diploma in Applied Ministry'
+    )
+        INSERT INTO dbo.programmes (department_id, programme_name, duration_years)
+        VALUES (@dept_ministry, N'Diploma in Applied Ministry', 3.0);
+
+    IF NOT EXISTS (
+        SELECT 1 FROM dbo.programmes
+        WHERE department_id = @dept_ministry AND programme_name = N'Certificate in Applied Ministry'
+    )
+        INSERT INTO dbo.programmes (department_id, programme_name, duration_years)
+        VALUES (@dept_ministry, N'Certificate in Applied Ministry', 1.0);
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.faculties WHERE faculty_name = N'Faculty of Agricultural Studies')
+        INSERT INTO dbo.faculties (faculty_name)
+        VALUES (N'Faculty of Agricultural Studies');
+
+    DECLARE @fac_agri INT =
+        (SELECT faculty_id FROM dbo.faculties WHERE faculty_name = N'Faculty of Agricultural Studies');
+
+    IF NOT EXISTS (
+        SELECT 1 FROM dbo.departments
+        WHERE faculty_id = @fac_agri AND department_name = N'Department of Tropical Agriculture'
+    )
+        INSERT INTO dbo.departments (faculty_id, department_name)
+        VALUES (@fac_agri, N'Department of Tropical Agriculture');
+
+    DECLARE @dept_agri INT =
+        (SELECT department_id FROM dbo.departments
+         WHERE faculty_id = @fac_agri AND department_name = N'Department of Tropical Agriculture');
+
+    IF NOT EXISTS (
+        SELECT 1 FROM dbo.programmes
+        WHERE department_id = @dept_agri AND programme_name = N'Diploma in Tropical Agriculture'
+    )
+        INSERT INTO dbo.programmes (department_id, programme_name, duration_years)
+        VALUES (@dept_agri, N'Diploma in Tropical Agriculture', 3.0);
+
+    IF NOT EXISTS (
+        SELECT 1 FROM dbo.programmes
+        WHERE department_id = @dept_agri AND programme_name = N'Certificate in Tropical Agriculture'
+    )
+        INSERT INTO dbo.programmes (department_id, programme_name, duration_years)
+        VALUES (@dept_agri, N'Certificate in Tropical Agriculture', 1.0);
 
     IF NOT EXISTS (SELECT 1 FROM dbo.academic_years WHERE year_name = N'2026')
         INSERT INTO dbo.academic_years (year_name, start_date, end_date)

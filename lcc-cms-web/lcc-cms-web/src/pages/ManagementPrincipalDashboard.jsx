@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { API_ORIGIN, apiFetch } from "../api";
+import { MANAGEMENT_NAV } from "./managementNav";
 import "./StudentRecords.css";
-
-const NAV = [
-  { label: "Overview", path: "/management" },
-  "Institution Reports", "Enrolment Analytics", "Staff Overview", "Announcements", "Profile",
-];
 
 const KPI = [
   { key: "students", label: "Students" },
@@ -42,7 +38,7 @@ export default function ManagementPrincipalDashboard() {
   }, []);
 
   return (
-    <DashboardLayout title="Management / Principal Dashboard" navItems={NAV}>
+    <DashboardLayout title="Management / Principal Dashboard" navItems={MANAGEMENT_NAV}>
       {apiError && <div className="records-error">{apiError}</div>}
       {isLoading && (
         <p style={{ color: "var(--text-light)", marginBottom: 18 }}>
