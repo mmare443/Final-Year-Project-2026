@@ -17,9 +17,13 @@
   text-align: center;
 }
 
+.login-card .page-header-stack {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .login-card .page-header {
   justify-content: center;
-  margin-bottom: 12px;
   text-align: left;
 }
 

@@ -16,7 +16,14 @@ import StudentProfile from "./pages/StudentProfile";
 import MyCourses from "./pages/MyCourses";
 import Results from "./pages/Results";
 import LecturerDashboard from "./pages/LecturerDashboard";
+import LecturerClasses from "./pages/LecturerClasses";
+import LecturerProfile from "./pages/LecturerProfile";
 import HoDDashboard from "./pages/HoDDashboard";
+import DepartmentStaff from "./pages/DepartmentStaff";
+import DepartmentProgrammes from "./pages/DepartmentProgrammes";
+import HoDAcademicStructure from "./pages/HoDAcademicStructure";
+import HoDReports from "./pages/HoDReports";
+import HoDProfile from "./pages/HoDProfile";
 import RegistrarAdminDashboard from "./pages/RegistrarAdminDashboard";
 import StudentRecords from "./pages/StudentRecords";
 import AcademicStructure from "./pages/AcademicStructure";
@@ -104,6 +111,22 @@ function App() {
                     }
                   />
                   <Route
+                    path="/lecturer/classes"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.LECTURER}>
+                        <LecturerClasses />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/lecturer/profile"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.LECTURER}>
+                        <LecturerProfile />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/lecturer/attendance"
                     element={
                       <ProtectedRoute allowedRole={ROLES.LECTURER}>
@@ -132,6 +155,46 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.HOD}>
                         <Attendance />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/hod/staff"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.HOD}>
+                        <DepartmentStaff />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/hod/programmes"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.HOD}>
+                        <DepartmentProgrammes />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/hod/academic"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.HOD}>
+                        <HoDAcademicStructure />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/hod/reports"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.HOD}>
+                        <HoDReports />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/hod/profile"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.HOD}>
+                        <HoDProfile />
                       </ProtectedRoute>
                     }
                   />

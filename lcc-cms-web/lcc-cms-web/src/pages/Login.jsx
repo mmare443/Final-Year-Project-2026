@@ -38,7 +38,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <PageHeader title="Sign in" subtitle="College portal" />
+        <PageHeader brand="LCC-CMS" title="Sign In" subtitle="College Portal" />
         <p className="login-intro">
           Sign in with your LCC email and password to open the College portal.
         </p>

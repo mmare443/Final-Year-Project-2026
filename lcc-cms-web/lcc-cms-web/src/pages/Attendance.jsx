@@ -8,21 +8,16 @@ import {
   ATTENDANCE_STATUSES,
   ATTENDANCE_THRESHOLD,
 } from "../context/AttendanceContext";
+import { HOD_NAV } from "./hodNav";
 import "./Attendance.css";
 
 const LECTURER_NAV = [
   { label: "Overview", path: "/lecturer" },
-  "My Classes",
+  { label: "My Classes", path: "/lecturer/classes" },
   { label: "Attendance", path: "/lecturer/attendance" },
   { label: "Assignments", path: "/lecturer/assignments" },
   { label: "Grading", path: "/lecturer/assignments" },
-  "Profile",
-];
-
-const HOD_NAV = [
-  { label: "Overview", path: "/hod" },
-  { label: "Attendance", path: "/hod/attendance" },
-  "Department Staff", "Programmes", "Academic Structure", "Reports", "Profile",
+  { label: "Profile", path: "/lecturer/profile" },
 ];
 
 const STUDENT_NAV = [
