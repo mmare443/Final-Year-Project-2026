@@ -450,7 +450,7 @@ export default function Learning() {
 
   return (
     <DashboardLayout
-      title={isLecturer ? "Learning & assignments" : "My assignments"}
+      title={isLecturer ? "Learning" : "Assignments"}
       navItems={isLecturer ? LECTURER_NAV : STUDENT_NAV}
     >
       {isLecturer ? <LecturerLearning /> : <StudentLearning />}

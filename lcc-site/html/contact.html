@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="description"
-          content="Programmes offered at Lutheran Church College, Banz.">
+          content="Contact Lutheran Church College in Banz, Jiwaka Province.">
 
-    <title>Programmes | Lutheran Church College</title>
+    <title>Contact | Lutheran Church College</title>
 
     <link rel="icon"
           type="image/png"
@@ -35,7 +35,7 @@
                      alt="Lutheran Church College"
                      class="page-header-logo">
                 <span class="page-header-text">
-                    <span class="page-header-title">Programmes</span>
+                    <span class="page-header-title">Contact</span>
                 </span>
             </a>
 
@@ -55,10 +55,10 @@
 
                 <a href="../index.html">Home</a>
                 <a href="about.html">About LCC</a>
-                <a href="programmes.html" aria-current="page">Programmes</a>
+                <a href="programmes.html">Programmes</a>
                 <a href="admissions.html">Admissions</a>
                 <a href="news.html">News</a>
-                <a href="contact.html">Contact</a>
+                <a href="contact.html" aria-current="page">Contact</a>
 
                 <a href="apply.html" class="nav-apply">
                     Apply Now
@@ -75,30 +75,62 @@
     </header>
 
     <main>
-        <section class="section"
-                 aria-labelledby="programmes-page-title">
+        <section class="section" aria-labelledby="contact-page-title">
             <div class="container">
 
                 <div class="section-heading">
-                    <span class="section-eyebrow">PROGRAMMES</span>
-                    <h1 id="programmes-page-title">Programmes Offered</h1>
+                    <span class="section-eyebrow">CONTACT</span>
+                    <h1 id="contact-page-title">Need More Information?</h1>
                     <p>
-                        Diploma and Certificate programmes grouped by
-                        faculty and department, as published in the
-                        College academic structure.
+                        Contact Lutheran Church College for enquiries
+                        about programmes, admissions and college services.
                     </p>
                 </div>
 
-                <p id="programmes-status" class="programmes-status">
-                    Loading programmes…
-                </p>
+                <div class="contact-layout">
+                    <div class="contact-details">
+                        <article class="info-card">
+                            <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                            <h3>Campus</h3>
+                            <p>Banz, Jiwaka Province, Papua New Guinea</p>
+                        </article>
+                        <article class="info-card">
+                            <i class="fa-solid fa-phone" aria-hidden="true"></i>
+                            <h3>Phone</h3>
+                            <p>+675 7100 2600</p>
+                        </article>
+                        <article class="info-card">
+                            <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+                            <h3>Email</h3>
+                            <p>info@lccb.ac.pg</p>
+                        </article>
+                    </div>
 
-                <div id="programmes-root"></div>
-
-                <div class="section-cta">
-                    <a href="apply.html" class="btn btn-primary apply-pulse">
-                        Apply Now
-                    </a>
+                    <form id="contact-form" class="contact-form-card" novalidate>
+                        <h2>Send a message</h2>
+                        <p>
+                            This enquiry form is for the public website.
+                            It does not create a CMS ticket.
+                        </p>
+                        <label>
+                            Full name
+                            <input type="text" name="name" required maxlength="150" autocomplete="name">
+                        </label>
+                        <label>
+                            Email
+                            <input type="email" name="email" required maxlength="255" autocomplete="email">
+                        </label>
+                        <label>
+                            Subject
+                            <input type="text" name="subject" required maxlength="150">
+                        </label>
+                        <label>
+                            Message
+                            <textarea name="message" required maxlength="2000"></textarea>
+                        </label>
+                        <button type="submit" class="btn btn-primary">Send message</button>
+                        <p id="contact-status" class="form-status" hidden></p>
+                    </form>
                 </div>
 
             </div>
@@ -106,20 +138,13 @@
     </main>
 
     <footer class="site-footer">
-
         <div class="container footer-grid">
-
             <div class="footer-brand">
                 <img src="../images/logo/lcc-logo.png"
                      alt="Lutheran Church College Logo">
-
                 <h3>Lutheran Church College</h3>
-
-                <p>
-                    Banz • Jiwaka Province • Papua New Guinea
-                </p>
+                <p>Banz • Jiwaka Province • Papua New Guinea</p>
             </div>
-
             <div class="footer-links">
                 <h4>Quick Navigation</h4>
                 <a href="about.html">About LCC</a>
@@ -128,29 +153,22 @@
                 <a href="news.html">News</a>
                 <a href="contact.html">Contact</a>
             </div>
-
             <div class="footer-contact">
                 <h4>Contact</h4>
-                <p>Phone: [College Phone]</p>
-                <p>Email: [College Email]</p>
+                <p>Phone: +675 7100 2600</p>
+                <p>Email: info@lccb.ac.pg</p>
                 <p>Address: Banz, Jiwaka Province, PNG</p>
             </div>
-
         </div>
-
         <div class="footer-bottom">
             <div class="container">
-                <p>
-                    &copy; 2026 Lutheran Church College.
-                    All rights reserved.
-                </p>
+                <p>&copy; 2026 Lutheran Church College. All rights reserved.</p>
             </div>
         </div>
-
     </footer>
 
     <script src="../js/main.js"></script>
-    <script src="../js/programmes.js"></script>
+    <script src="../js/contact.js"></script>
 
 </body>
 </html>

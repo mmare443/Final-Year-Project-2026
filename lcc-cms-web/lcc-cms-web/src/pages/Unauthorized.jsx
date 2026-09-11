@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useMockAuth } from "../context/MockAuthContext";
+import PageHeader from "../components/PageHeader";
 
 export default function Unauthorized() {
   const { signOut } = useMockAuth();
@@ -17,7 +18,7 @@ export default function Unauthorized() {
       fontFamily: "var(--font-main)", background: "var(--background)",
       textAlign: "center", padding: 24,
     }}>
-      <h1 style={{ color: "var(--secondary)" }}>403 — Not Authorized</h1>
+      <PageHeader title="Not authorized" subtitle="This portal is limited to your assigned role." />
       <p style={{ color: "var(--text-light)", maxWidth: 380 }}>
         Your role doesn't have access to this portal. This mirrors the real
         backend policy check that will reject this the same way once the

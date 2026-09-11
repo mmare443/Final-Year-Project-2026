@@ -50,7 +50,7 @@ export default function StudentRecords() {
   };
 
   return (
-    <DashboardLayout title="Student Records — Registrar" navItems={REGISTRAR_NAV}>
+    <DashboardLayout title="Student Records" navItems={REGISTRAR_NAV}>
       <p style={{ color: "var(--text-light)", fontSize: 13, marginBottom: 18 }}>
         M2 — correct a student's contact or emergency details on their
         behalf. Academic fields (programme, ID) are set at admission (M1)

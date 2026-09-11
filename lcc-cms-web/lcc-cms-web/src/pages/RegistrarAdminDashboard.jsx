@@ -51,7 +51,8 @@ export default function RegistrarAdminDashboard() {
 
   return (
     <DashboardLayout
-      title={`Registrar / Admin Dashboard — ${effectiveTitle}`}
+      title="Registrar Admin Dashboard"
+      subtitle={effectiveTitle}
       navItems={NAV_BY_TITLE[effectiveTitle]}
     >
       {showAdmissions && (

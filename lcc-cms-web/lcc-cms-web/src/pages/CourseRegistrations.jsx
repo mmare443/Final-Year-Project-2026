@@ -31,7 +31,7 @@ export default function CourseRegistrations() {
   };
 
   return (
-    <DashboardLayout title="Course Registration — M4" navItems={REGISTRAR_NAV}>
+    <DashboardLayout title="Course Registrations" navItems={REGISTRAR_NAV}>
       <p style={{ color: "var(--text-light)", fontSize: 13, marginBottom: 18 }}>
         Approve or reject pending course registrations. Students submit from
         their own account; this queue is Registrar/Admin.

@@ -7,7 +7,7 @@ export const REGISTRAR_NAV = [
   { label: "Admissions", path: "/registrar" },
   { label: "Student Records", path: "/registrar/students" },
   { label: "Academic Structure", path: "/registrar/academic" },
-  { label: "Course Registration", path: "/registrar/registrations" },
+  { label: "Course Registrations", path: "/registrar/registrations" },
   { label: "Staff Management", path: "/registrar/staff" },
   { label: "Accommodation & Welfare", path: "/registrar/accommodation" },
   "System Administration",

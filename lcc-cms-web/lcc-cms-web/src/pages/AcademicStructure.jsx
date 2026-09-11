@@ -222,7 +222,7 @@ export default function AcademicStructure() {
   };
 
   return (
-    <DashboardLayout title="Academic Structure — M3" navItems={REGISTRAR_NAV}>
+    <DashboardLayout title="Academic Structure" navItems={REGISTRAR_NAV}>
       {apiError && <div className="as-error">{apiError}</div>}
 
       <div className="as-tabs">

@@ -476,10 +476,7 @@ export default function Attendance() {
     role === ROLES.HOD ? HOD_NAV :
     STUDENT_NAV;
 
-  const title =
-    role === ROLES.LECTURER ? "Attendance — take register" :
-    role === ROLES.HOD ? "Attendance monitoring" :
-    "My attendance";
+  const title = "Attendance";
 
   return (
     <DashboardLayout title={title} navItems={nav}>

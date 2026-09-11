@@ -59,7 +59,7 @@ export default function ManagementProfile() {
   const initial = emailInitial(me?.email);
 
   return (
-    <DashboardLayout title="Profile" navItems={MANAGEMENT_NAV}>
+    <DashboardLayout title="Management Profile" navItems={MANAGEMENT_NAV}>
       {apiError && <div className="records-error">{apiError}</div>}
       {isLoading && (
         <p style={{ color: "var(--text-light)", marginBottom: 18 }}>

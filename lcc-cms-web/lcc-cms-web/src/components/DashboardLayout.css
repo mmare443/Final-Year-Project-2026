@@ -22,8 +22,8 @@
 }
 
 .dash-logo-img {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   object-fit: contain;
   border-radius: 50%;
   background: var(--white);
@@ -96,14 +96,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   background: var(--white);
   padding: 18px 32px;
   border-bottom: 1px solid #E7EBF0;
 }
 
-.dash-header h1 {
-  font-size: 20px;
-  color: var(--secondary);
+.dash-header .page-header {
+  flex: 1;
+  min-width: 0;
 }
 
 .dash-user {
@@ -208,4 +209,15 @@
   font-size: 28px;
   font-weight: 700;
   color: var(--secondary);
+}
+
+@media (max-width: 720px) {
+  .dash-header {
+    flex-wrap: wrap;
+    padding: 14px 18px;
+  }
+
+  .dash-user {
+    margin-left: auto;
+  }
 }

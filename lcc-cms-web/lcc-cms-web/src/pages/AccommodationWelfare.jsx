@@ -174,7 +174,7 @@ export default function AccommodationWelfare() {
   ));
 
   return (
-    <DashboardLayout title="Accommodation & Welfare — M10" navItems={REGISTRAR_NAV}>
+    <DashboardLayout title="Accommodation & Welfare" navItems={REGISTRAR_NAV}>
       {apiError && <div className="records-error">{apiError}</div>}
       {saveError && <div className="records-error">{saveError}</div>}
 

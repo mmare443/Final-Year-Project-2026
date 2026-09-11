@@ -4,7 +4,7 @@
  */
 export const MANAGEMENT_NAV = [
   { label: "Overview", path: "/management" },
-  "Institution Reports",
+  { label: "Institution Reports", path: "/management/reports" },
   { label: "Enrolment Analytics", path: "/management/enrolment" },
   { label: "Staff Overview", path: "/management/staff" },
   { label: "Announcements", path: "/management/announcements" },

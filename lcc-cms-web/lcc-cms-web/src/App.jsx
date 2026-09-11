@@ -26,6 +26,7 @@ import AccommodationWelfare from "./pages/AccommodationWelfare";
 import ManagementPrincipalDashboard from "./pages/ManagementPrincipalDashboard";
 import EnrolmentAnalytics from "./pages/EnrolmentAnalytics";
 import StaffOverview from "./pages/StaffOverview";
+import InstitutionReports from "./pages/InstitutionReports";
 import Announcements from "./pages/Announcements";
 import ManagementProfile from "./pages/ManagementProfile";
 import Attendance from "./pages/Attendance";
@@ -187,6 +188,14 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
                         <ManagementPrincipalDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/management/reports"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
+                        <InstitutionReports />
                       </ProtectedRoute>
                     }
                   />

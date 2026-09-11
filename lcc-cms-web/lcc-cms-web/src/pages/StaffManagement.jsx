@@ -76,7 +76,7 @@ export default function StaffManagement() {
   };
 
   return (
-    <DashboardLayout title="Staff Management — M9" navItems={REGISTRAR_NAV}>
+    <DashboardLayout title="Staff Management" navItems={REGISTRAR_NAV}>
       <p style={{ color: "var(--text-light)", fontSize: 13, marginBottom: 18 }}>
         Create faculty and staff users (staff_id = user_id). Role must be a
         staff SQL role, not Student.

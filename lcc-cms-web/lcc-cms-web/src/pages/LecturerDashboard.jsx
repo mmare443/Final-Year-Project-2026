@@ -20,7 +20,7 @@ export default function LecturerDashboard() {
   const todayCount = sessions.filter((s) => s.sessionDate === today).length;
 
   return (
-    <DashboardLayout title="Lecturer Dashboard" navItems={LECTURER_NAV}>
+    <DashboardLayout title="Dashboard" navItems={LECTURER_NAV}>
       <div className="dash-card-grid">
         <div className="dash-card">
           <h3>Classes Teaching</h3>

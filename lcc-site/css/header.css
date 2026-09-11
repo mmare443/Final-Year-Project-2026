@@ -17,21 +17,26 @@
 .site-logo {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     color: var(--secondary);
     text-decoration: none;
     flex-shrink: 0;
+    min-width: 0;
 }
 
-.site-logo img {
-    width: 52px;
-    height: 52px;
+.site-logo img,
+.site-logo .page-header-logo {
+    width: 40px;
+    height: 40px;
     object-fit: contain;
+    border-radius: 50%;
+    background: var(--white);
+    padding: 2px;
 }
 
-.site-logo span {
-    font-size: 1.05rem;
-    font-weight: 800;
+.site-logo .page-header-title {
+    font-size: 20px;
+    font-weight: 700;
 }
 
 .main-nav {

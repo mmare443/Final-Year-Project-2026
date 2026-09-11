@@ -11,7 +11,7 @@ export default function HoDDashboard() {
   }, [fetchAlerts]);
 
   return (
-    <DashboardLayout title="Head of Department Dashboard" navItems={HOD_NAV}>
+    <DashboardLayout title="Dashboard" navItems={HOD_NAV}>
       <div className="dash-card-grid">
         <div className="dash-card">
           <h3>Department Staff</h3>

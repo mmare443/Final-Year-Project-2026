@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMockData } from "../context/MockDataContext";
 import { API_ORIGIN, apiFetch } from "../api";
 import { PUBLIC_SITE_URL } from "../config";
+import PageHeader from "../components/PageHeader";
 import "./Apply.css";
 
 const EMPTY_FORM = {
@@ -108,7 +109,7 @@ export default function Apply() {
     return (
       <div className="apply-page">
         <div className="apply-card">
-          <h1>Application Submitted</h1>
+          <PageHeader title="Application submitted" />
           <p className="apply-intro">
             Thank you, {submitted.fullName.split(" ")[0]}. Your application
             for <strong>{submitted.programme}</strong> has been received and
@@ -137,9 +138,11 @@ export default function Apply() {
 
   return (
     <div className="apply-page">
-      <div className="apply-card">
-        <div className="apply-eyebrow">LCC-CMS · Admissions</div>
-        <h1>Apply to Lutheran Church College, Banz</h1>
+        <div className="apply-card">
+        <PageHeader
+          title="Apply"
+          subtitle="Lutheran Church College, Banz"
+        />
         <p className="apply-intro">
           Complete the form and attach all required documents. Per LCCB's
           admissions policy, applications without required documents will

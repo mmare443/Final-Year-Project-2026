@@ -24,10 +24,8 @@
   margin-bottom: 8px;
 }
 
-.apply-card h1 {
-  color: var(--secondary);
-  font-size: 24px;
-  margin-bottom: 12px;
+.apply-card .page-header {
+  margin-bottom: 16px;
 }
 
 .apply-intro {

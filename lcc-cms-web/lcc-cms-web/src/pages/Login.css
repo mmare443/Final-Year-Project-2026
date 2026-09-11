@@ -17,18 +17,10 @@
   text-align: center;
 }
 
-.login-logo-img {
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto 14px;
-}
-
-.login-card h1 {
-  color: var(--secondary);
-  font-size: 26px;
-  margin-bottom: 10px;
+.login-card .page-header {
+  justify-content: center;
+  margin-bottom: 12px;
+  text-align: left;
 }
 
 .login-form {

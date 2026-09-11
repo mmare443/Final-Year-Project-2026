@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { useMockAuth, ROLE_LABELS } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
 import lccLogo from "../assets/lcc-logo.png";
+import PageHeader from "./PageHeader";
 import "./DashboardLayout.css";
 
 /**
@@ -12,7 +13,7 @@ import "./DashboardLayout.css";
  * dashboard's sidebar honestly distinguish "built, click me" from
  * "planned, not wired up yet" instead of every item looking equally dead.
  */
-export default function DashboardLayout({ title, navItems = [], children }) {
+export default function DashboardLayout({ title, subtitle, navItems = [], children }) {
   const { role, displayName, avatarUrl, setAvatar, signOut } = useMockAuth();
   const avatarInputRef = useRef(null);
 
@@ -71,7 +72,7 @@ export default function DashboardLayout({ title, navItems = [], children }) {
 
       <div className="dash-main">
         <header className="dash-header">
-          <h1>{title}</h1>
+          <PageHeader title={title} subtitle={subtitle} />
           <div className="dash-user">
             <div className="dash-user-info">
               <span className="dash-user-name">{displayName}</span>

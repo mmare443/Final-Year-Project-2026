@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { API_ORIGIN, apiFetch } from "../api";
 import { MANAGEMENT_NAV } from "./managementNav";
@@ -13,7 +14,7 @@ const KPI = [
   { key: "openWelfareCases", label: "Open Welfare Cases" },
 ];
 
-export default function ManagementPrincipalDashboard() {
+export default function InstitutionReports() {
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
@@ -38,11 +39,11 @@ export default function ManagementPrincipalDashboard() {
   }, []);
 
   return (
-    <DashboardLayout title="Management Principal Dashboard" navItems={MANAGEMENT_NAV}>
+    <DashboardLayout title="Institution Reports" navItems={MANAGEMENT_NAV}>
       {apiError && <div className="records-error">{apiError}</div>}
       {isLoading && (
         <p style={{ color: "var(--text-light)", marginBottom: 18 }}>
-          Loading institutional summary…
+          Loading institution reports…
         </p>
       )}
 
@@ -57,9 +58,18 @@ export default function ManagementPrincipalDashboard() {
         ))}
       </div>
 
-      <p style={{ marginTop: 24, color: "var(--text-light)", fontSize: 13 }}>
-        Executive snapshot from enrolled students, staff, academic structure,
-        active hostel allocations, and open welfare cases.
+      <p style={{ marginTop: 24, marginBottom: 14, color: "var(--text-light)", fontSize: 13 }}>
+        College-wide totals from the same sources as Overview. Open Enrolment
+        Analytics or Staff Overview for the detailed breakdowns.
+      </p>
+
+      <p style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+        <Link to="/management/enrolment" style={{ color: "var(--primary)", fontWeight: 700 }}>
+          Enrolment Analytics
+        </Link>
+        <Link to="/management/staff" style={{ color: "var(--primary)", fontWeight: 700 }}>
+          Staff Overview
+        </Link>
       </p>
     </DashboardLayout>
   );
