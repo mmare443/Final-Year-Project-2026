@@ -25,6 +25,9 @@ import StaffManagement from "./pages/StaffManagement";
 import AccommodationWelfare from "./pages/AccommodationWelfare";
 import ManagementPrincipalDashboard from "./pages/ManagementPrincipalDashboard";
 import EnrolmentAnalytics from "./pages/EnrolmentAnalytics";
+import StaffOverview from "./pages/StaffOverview";
+import Announcements from "./pages/Announcements";
+import ManagementProfile from "./pages/ManagementProfile";
 import Attendance from "./pages/Attendance";
 import Learning from "./pages/Learning";
 
@@ -192,6 +195,30 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
                         <EnrolmentAnalytics />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/management/staff"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
+                        <StaffOverview />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/management/announcements"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
+                        <Announcements />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/management/profile"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
+                        <ManagementProfile />
                       </ProtectedRoute>
                     }
                   />

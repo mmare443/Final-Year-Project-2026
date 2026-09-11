@@ -1,4 +1,5 @@
 using LCC_CMS_Api.Models;
+using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +8,8 @@ namespace LCC_CMS_Api.Controllers;
 
 /// <summary>
 /// M11 — Reporting &amp; Analytics. Phase 1 is the executive snapshot;
-/// Phase 2 adds enrolment analytics. Counts existing tables only.
+/// Phase 2 adds enrolment analytics; Phase 4 is staff overview.
+/// Counts existing tables only (no new tables).
 /// </summary>
 [ApiController]
 [Authorize(Policy = "ManagementOnly")]
@@ -113,6 +115,69 @@ public class ReportsController : ControllerBase
             Programmes = breakdown,
         });
     }
+
+    [HttpGet("staff")]
+    [Authorize(Policy = "ManagementOnly")]
+    public async Task<ActionResult<ReportStaffRecord>> GetStaff(
+        CancellationToken cancellationToken)
+    {
+        var roleCounts = await _dbContext.Staff
+            .AsNoTracking()
+            .GroupBy(s => s.StaffNavigation.Role)
+            .Select(g => new { Role = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        int CountRole(string policyRole) =>
+            roleCounts
+                .Where(r => RoleNames.ToPolicyRole(r.Role)
+                    .Equals(policyRole, StringComparison.OrdinalIgnoreCase))
+                .Sum(r => r.Count);
+
+        var staffByDepartment = await _dbContext.Staff
+            .AsNoTracking()
+            .GroupBy(s => s.DepartmentId)
+            .Select(g => new { DepartmentId = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var allocationsByDepartment = await _dbContext.CourseAllocations
+            .AsNoTracking()
+            .GroupBy(a => a.Staff.DepartmentId)
+            .Select(g => new { DepartmentId = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var staffLookup = staffByDepartment.ToDictionary(x => x.DepartmentId, x => x.Count);
+        var allocationLookup = allocationsByDepartment.ToDictionary(x => x.DepartmentId, x => x.Count);
+
+        var departments = await _dbContext.Departments
+            .AsNoTracking()
+            .Select(d => new
+            {
+                d.DepartmentId,
+                d.DepartmentName,
+                FacultyName = d.Faculty.FacultyName,
+            })
+            .OrderBy(d => d.FacultyName)
+            .ThenBy(d => d.DepartmentName)
+            .ToListAsync(cancellationToken);
+
+        var breakdown = departments.Select(d => new StaffDepartmentOverviewRecord
+        {
+            FacultyName = d.FacultyName,
+            DepartmentName = d.DepartmentName,
+            StaffCount = staffLookup.GetValueOrDefault(d.DepartmentId),
+            AllocatedCourses = allocationLookup.GetValueOrDefault(d.DepartmentId),
+        }).ToList();
+
+        return Ok(new ReportStaffRecord
+        {
+            TotalStaff = roleCounts.Sum(r => r.Count),
+            Lecturers = CountRole(RoleNames.Lecturer),
+            HoDs = CountRole(RoleNames.HoD),
+            RegistrarAdmins = CountRole(RoleNames.RegistrarAdmin),
+            ManagementPrincipals = CountRole(RoleNames.ManagementPrincipal),
+            Departments = breakdown,
+        });
+    }
 }
 
 public class ReportSummaryRecord
@@ -147,4 +212,23 @@ public class EnrolmentProgrammeRecord
     public int ApprovedAdmissions { get; set; }
     public int RejectedAdmissions { get; set; }
     public int EnrolledStudents { get; set; }
+}
+
+public class ReportStaffRecord
+{
+    public int TotalStaff { get; set; }
+    public int Lecturers { get; set; }
+    public int HoDs { get; set; }
+    public int RegistrarAdmins { get; set; }
+    public int ManagementPrincipals { get; set; }
+    public IReadOnlyList<StaffDepartmentOverviewRecord> Departments { get; set; } =
+        Array.Empty<StaffDepartmentOverviewRecord>();
+}
+
+public class StaffDepartmentOverviewRecord
+{
+    public string FacultyName { get; set; } = "";
+    public string DepartmentName { get; set; } = "";
+    public int StaffCount { get; set; }
+    public int AllocatedCourses { get; set; }
 }

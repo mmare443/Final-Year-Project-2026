@@ -1,0 +1,90 @@
+.profile-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 0 24px;
+  text-align: center;
+}
+
+.profile-avatar-circle {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 2px solid #E2E8F0;
+  background: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.profile-avatar-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.profile-avatar-initial {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.profile-avatar-caption {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--secondary);
+  word-break: break-word;
+}
+
+.dash-card .profile-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-light);
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+
+.profile-card-title svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.profile-card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.profile-card-fields dt {
+  font-size: 11.5px;
+  color: var(--text-light);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
+}
+
+.profile-card-fields dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  word-break: break-word;
+}
+
+@media (max-width: 720px) {
+  .profile-avatar-circle {
+    width: 76px;
+    height: 76px;
+  }
+
+  .profile-avatar-initial {
+    font-size: 28px;
+  }
+}
