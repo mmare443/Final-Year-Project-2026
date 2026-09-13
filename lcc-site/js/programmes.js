@@ -73,6 +73,14 @@ function renderProgrammeCard(programme) {
     `;
 }
 
+function facultyPhoto(faculty) {
+    const name = `${faculty.facultyName || ""} ${faculty.departments.map((d) => d.departmentName).join(" ")}`.toLowerCase();
+    if (name.includes("business")) return "../images/college/lccbm.jpg";
+    if (name.includes("ministry") || name.includes("applied")) return "../images/college/lccam.jpg";
+    if (name.includes("agriculture") || name.includes("tropical")) return "../images/college/lccta.jpg";
+    return "";
+}
+
 function renderTree(tree) {
     const withProgrammes = tree.filter((faculty) =>
         faculty.departments.some((dept) => dept.programmes.length > 0)
@@ -83,6 +91,7 @@ function renderTree(tree) {
     }
 
     return withProgrammes.map((faculty) => {
+        const photo = facultyPhoto(faculty);
         const departmentsHtml = faculty.departments
             .filter((dept) => dept.programmes.length > 0)
             .map((dept) => `
@@ -97,6 +106,7 @@ function renderTree(tree) {
 
         return `
             <section class="faculty-block" aria-labelledby="faculty-${faculty.facultyId}">
+                ${photo ? `<img class="faculty-photo" src="${photo}" alt="${escapeHtml(faculty.facultyName)}">` : ""}
                 <h2 id="faculty-${faculty.facultyId}">${escapeHtml(faculty.facultyName)}</h2>
                 ${departmentsHtml}
             </section>

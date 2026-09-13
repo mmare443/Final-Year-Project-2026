@@ -3,6 +3,7 @@ import DashboardLayout from "../components/DashboardLayout";
 import { Briefcase, Building2, UserCircle } from "../components/ProfileIcons";
 import { API_ORIGIN, apiFetch } from "../api";
 import { MANAGEMENT_NAV } from "./managementNav";
+import principalPhoto from "../assets/lccpr.jpg";
 import "./StudentRecords.css";
 import "./ManagementProfile.css";
 
@@ -26,6 +27,7 @@ export default function ManagementProfile() {
   const [staff, setStaff] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -71,7 +73,14 @@ export default function ManagementProfile() {
         <>
           <div className="profile-avatar">
             <div className="profile-avatar-circle" aria-hidden="true">
-              {initial ? (
+              {!photoFailed ? (
+                <img
+                  src={principalPhoto}
+                  alt=""
+                  className="profile-avatar-photo"
+                  onError={() => setPhotoFailed(true)}
+                />
+              ) : initial ? (
                 <span className="profile-avatar-initial">{initial}</span>
               ) : (
                 <UserCircle className="profile-avatar-icon" />
