@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace LCC_CMS_Api.Controllers;
 
@@ -14,8 +15,9 @@ namespace LCC_CMS_Api.Controllers;
 /// a <c>users</c> row (<c>entra_id</c> = Graph object id) and a matching
 /// <c>students</c> row (<c>student_id</c> = <c>user_id</c>), then links
 /// <c>admissions.student_id</c>. Graph failure leaves the admission Applied.
-/// SQL failure after Graph deletes the Entra user. Welcome email is later
-/// (FR-1.6). Reject still only updates status/date/reviewer.
+/// SQL failure after Graph deletes the Entra user. Approval also issues a
+/// one-time activation token (7 days). Preview is GET activation-preview.
+/// Reject still only updates status/date/reviewer.
 /// Uploaded files use IFileStorage; admission document metadata is persisted
 /// in admission_documents.
 ///
@@ -37,6 +39,7 @@ public class AdmissionsController : ControllerBase
     private readonly ICurrentUser _currentUser;
     private readonly IFileStorage _fileStorage;
     private readonly IEntraUserProvisioner _entraUsers;
+    private readonly PortalSettings _portal;
     private readonly ILogger<AdmissionsController> _logger;
 
     public AdmissionsController(
@@ -44,12 +47,14 @@ public class AdmissionsController : ControllerBase
         ICurrentUser currentUser,
         IFileStorage fileStorage,
         IEntraUserProvisioner entraUsers,
+        IOptions<PortalSettings> portal,
         ILogger<AdmissionsController> logger)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
         _fileStorage = fileStorage;
         _entraUsers = entraUsers;
+        _portal = portal.Value;
         _logger = logger;
     }
 
@@ -61,6 +66,7 @@ public class AdmissionsController : ControllerBase
             .AsNoTracking()
             .Include(a => a.Programme)
             .Include(a => a.Student)
+                .ThenInclude(s => s!.StudentNavigation)
             .Include(a => a.AdmissionDocuments)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
@@ -261,6 +267,7 @@ public class AdmissionsController : ControllerBase
             var admission = await _dbContext.Admissions
                 .Include(a => a.Programme)
                 .Include(a => a.Student)
+                    .ThenInclude(s => s!.StudentNavigation)
                 .Include(a => a.AdmissionDocuments)
                 .FirstOrDefaultAsync(a => a.AdmissionId == id, cancellationToken);
             if (admission is null) return NotFound();
@@ -315,6 +322,9 @@ public class AdmissionsController : ControllerBase
                 Status = "Active",
                 CreatedAt = DateTime.UtcNow,
                 EntraId = provisioned.ObjectId,
+                ActivationToken = ActivationToken.Create(),
+                ActivationExpiresAt = ActivationToken.ExpiresAtUtc(),
+                ActivationUsed = false,
             };
             _dbContext.Users.Add(user);
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -327,6 +337,8 @@ public class AdmissionsController : ControllerBase
                 EnrolmentStatus = "Enrolled",
             };
             _dbContext.Students.Add(student);
+            student.StudentNavigation = user;
+            student.Programme = admission.Programme;
 
             admission.StudentId = user.UserId;
             admission.Student = student;
@@ -356,6 +368,79 @@ public class AdmissionsController : ControllerBase
             await CompensateEntraDeleteAsync(entraObjectId, cancellationToken);
             throw;
         }
+    }
+
+    [Authorize(Policy = "RegistrarAdminOnly")]
+    [HttpGet("{id}/activation-preview")]
+    public async Task<ActionResult<ActivationPreviewResponse>> GetActivationPreview(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var staff = await RequireStaffAsync(cancellationToken);
+        if (staff.Error is not null) return staff.Error;
+
+        var admission = await _dbContext.Admissions
+            .Include(a => a.Programme)
+            .Include(a => a.Student)
+                .ThenInclude(s => s!.StudentNavigation)
+            .FirstOrDefaultAsync(a => a.AdmissionId == id, cancellationToken);
+        if (admission is null) return NotFound();
+
+        if (!string.Equals(admission.Status, "Approved", StringComparison.OrdinalIgnoreCase)
+            || admission.Student is null)
+        {
+            return Conflict("Activation preview is available after the application is approved.");
+        }
+
+        var user = admission.Student.StudentNavigation;
+        if (user is not null
+            && string.IsNullOrEmpty(user.ActivationToken)
+            && !user.ActivationUsed
+            && string.IsNullOrEmpty(user.PasswordHash))
+        {
+            user.ActivationToken = ActivationToken.Create();
+            user.ActivationExpiresAt = ActivationToken.ExpiresAtUtc();
+            user.ActivationUsed = false;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        string? hostel = null;
+        string? room = null;
+        var accommodation = await _dbContext.AccommodationRecords
+            .AsNoTracking()
+            .Include(r => r.Room)
+                .ThenInclude(r => r.Hostel)
+            .FirstOrDefaultAsync(
+                r => r.StudentId == admission.Student.StudentId
+                     && r.Status == "Active",
+                cancellationToken);
+        if (accommodation?.Room is not null)
+        {
+            hostel = accommodation.Room.Hostel?.HostelName;
+            room = accommodation.Room.RoomNumber;
+        }
+
+        var token = user?.ActivationToken;
+        var allocated = string.IsNullOrEmpty(hostel) && string.IsNullOrEmpty(room)
+            ? null
+            : string.Join(" / ", new[] { hostel, room }.Where(v => !string.IsNullOrEmpty(v)));
+
+        return Ok(new ActivationPreviewResponse
+        {
+            StudentName = admission.ApplicantName,
+            Programme = admission.Programme?.ProgrammeName ?? "",
+            StudentNumber = admission.Student.StudentNumber,
+            Hostel = hostel,
+            Room = room,
+            AllocatedRoom = allocated,
+            ActivationToken = token,
+            ActivationLink = string.IsNullOrEmpty(token)
+                ? null
+                : ActivationToken.ActivationLink(_portal.ActivationBaseUrl, token),
+            OnboardingStatus = OnboardingStatus.From(admission),
+            ActivationExpiresAt = user?.ActivationExpiresAt,
+            ActivationUsed = user?.ActivationUsed ?? false,
+        });
     }
 
     private async Task CompensateEntraDeleteAsync(string? objectId, CancellationToken cancellationToken)
@@ -483,6 +568,7 @@ public class AdmissionsController : ControllerBase
             Phone = admission.ApplicantPhone ?? "",
             Programme = admission.Programme?.ProgrammeName ?? "",
             Status = admission.Status,
+            OnboardingStatus = OnboardingStatus.From(admission),
             StudentId = admission.Student?.StudentNumber,
             SubmittedAt = admission.CreatedAt,
             Documents = admission.AdmissionDocuments
@@ -506,6 +592,7 @@ public class AdmissionApplication
     public string Phone { get; set; } = "";
     public string Programme { get; set; } = "";
     public string Status { get; set; } = "";
+    public string OnboardingStatus { get; set; } = "";
     public string? StudentId { get; set; }
     public DateTime SubmittedAt { get; set; }
     public List<AdmissionDocument> Documents { get; set; } = new();
@@ -540,4 +627,19 @@ public class AdmissionApplicationRequest
 public class AdmissionDecisionRequest
 {
     public string Decision { get; set; } = ""; // "approve" | "reject"
+}
+
+public class ActivationPreviewResponse
+{
+    public string StudentName { get; set; } = "";
+    public string Programme { get; set; } = "";
+    public string StudentNumber { get; set; } = "";
+    public string? Hostel { get; set; }
+    public string? Room { get; set; }
+    public string? AllocatedRoom { get; set; }
+    public string? ActivationToken { get; set; }
+    public string? ActivationLink { get; set; }
+    public string OnboardingStatus { get; set; } = "";
+    public DateTime? ActivationExpiresAt { get; set; }
+    public bool ActivationUsed { get; set; }
 }

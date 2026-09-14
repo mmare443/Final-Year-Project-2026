@@ -105,6 +105,24 @@
     color: var(--secondary);
 }
 
+.apply-success p {
+    margin: 0 0 12px;
+    color: var(--text-light);
+    line-height: 1.6;
+}
+
+.apply-success ul {
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+    color: #1E8449;
+    font-weight: 600;
+}
+
+.apply-success li {
+    margin-bottom: 6px;
+}
+
 @media (max-width: 900px) {
     .apply-info-grid {
         grid-template-columns: 1fr;

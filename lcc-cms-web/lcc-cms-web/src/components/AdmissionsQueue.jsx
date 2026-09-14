@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "../api";
 import { useMockData, API_ORIGIN } from "../context/MockDataContext";
 import "./AdmissionsQueue.css";
 
@@ -40,6 +41,27 @@ function DocumentsCell({ documents }) {
 export default function AdmissionsQueue() {
   const { applications, decideApplication, STATUS, isLoading, apiError, refresh } = useMockData();
   const [decidingId, setDecidingId] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
+  const [previewingId, setPreviewingId] = useState(null);
+
+  const loadPreview = async (id) => {
+    setPreviewingId(id);
+    setPreviewError(null);
+    try {
+      const res = await apiFetch(`${API_ORIGIN}/api/admissions/${id}/activation-preview`);
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(text || `Preview failed (${res.status}).`);
+      }
+      setPreview(JSON.parse(text));
+    } catch (err) {
+      setPreview(null);
+      setPreviewError(err.message || "Could not load onboarding preview.");
+    } finally {
+      setPreviewingId(null);
+    }
+  };
 
   const handleDecision = async (id, decision) => {
     setDecidingId(id);
@@ -74,7 +96,12 @@ export default function AdmissionsQueue() {
     );
   }
 
+  const localActivateHref = preview?.activationToken
+    ? `/activate?token=${encodeURIComponent(preview.activationToken)}`
+    : null;
+
   return (
+    <>
     <table className="admissions-table">
       <thead>
         <tr>
@@ -83,6 +110,7 @@ export default function AdmissionsQueue() {
           <th>Contact</th>
           <th>Documents</th>
           <th>Status</th>
+          <th>Onboarding</th>
           <th>Student ID</th>
           <th>Action</th>
         </tr>
@@ -104,6 +132,7 @@ export default function AdmissionsQueue() {
                 {app.status}
               </span>
             </td>
+            <td>{app.onboardingStatus || "—"}</td>
             <td>{app.studentId || "—"}</td>
             <td>
               {app.status === STATUS.APPLIED ? (
@@ -123,6 +152,14 @@ export default function AdmissionsQueue() {
                     {decidingId === app.id ? "…" : "Reject"}
                   </button>
                 </div>
+              ) : app.status === STATUS.APPROVED ? (
+                <button
+                  className="btn-preview"
+                  disabled={previewingId === app.id}
+                  onClick={() => loadPreview(app.id)}
+                >
+                  {previewingId === app.id ? "…" : "Onboarding"}
+                </button>
               ) : (
                 <span className="admissions-decided">Decided</span>
               )}
@@ -131,5 +168,42 @@ export default function AdmissionsQueue() {
         ))}
       </tbody>
     </table>
+    {previewError && <p className="admissions-preview-error">{previewError}</p>}
+    {preview && (
+      <div className="activation-preview">
+        <h3>Onboarding preview</h3>
+        <dl>
+          <dt>Student name</dt>
+          <dd>{preview.studentName}</dd>
+          <dt>Programme</dt>
+          <dd>{preview.programme}</dd>
+          <dt>Student number</dt>
+          <dd>{preview.studentNumber}</dd>
+          <dt>Allocated room</dt>
+          <dd>{preview.allocatedRoom || (preview.hostel && preview.room ? `${preview.hostel} / ${preview.room}` : "Not allocated")}</dd>
+          <dt>Onboarding status</dt>
+          <dd>{preview.onboardingStatus}</dd>
+          <dt>Activation token</dt>
+          <dd className="activation-token">{preview.activationToken || "—"}</dd>
+          <dt>Activation link</dt>
+          <dd>
+            {preview.activationLink ? (
+              <a href={localActivateHref || preview.activationLink}>
+                {preview.activationLink}
+              </a>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </dl>
+        {localActivateHref && (
+          <p>
+            Local demo:{" "}
+            <a href={localActivateHref}>Open activate page</a>
+          </p>
+        )}
+      </div>
+    )}
+    </>
   );
 }

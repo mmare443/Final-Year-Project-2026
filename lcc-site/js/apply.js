@@ -5,14 +5,6 @@ function byId(id) {
     return document.getElementById(id);
 }
 
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
-}
-
 async function loadProgrammes() {
     const select = byId("programme-select");
     const status = byId("apply-form-status");
@@ -158,20 +150,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                 throw new Error(message || `API returned ${res.status}`);
             }
 
-            const record = await res.json();
+            await res.json();
             form.hidden = true;
             if (successEl) {
                 successEl.hidden = false;
                 successEl.innerHTML = `
-                    <h2>Application submitted</h2>
-                    <p>
-                        Thank you, ${escapeHtml(record.fullName || "applicant")}.
-                        Your application for
-                        <strong>${escapeHtml(record.programme || programmeName)}</strong>
-                        has been received and is
-                        <strong>${escapeHtml(record.status || "Applied")}</strong>,
-                        pending Registrar review.
-                    </p>
+                    <h2>Application Submitted Successfully</h2>
+                    <p>Thank you for applying to Lutheran Church College Banz.</p>
+                    <p>Your application has been received and is currently under review.</p>
+                    <p>Please remain at your current location while your application is being assessed.</p>
+                    <p>You will be contacted by the College via Email and/or WhatsApp if your application is successful.</p>
+                    <p>At this stage:</p>
+                    <ul>
+                        <li>✅ No travel is required</li>
+                        <li>✅ No registration is required</li>
+                        <li>✅ No tuition payment is required</li>
+                    </ul>
+                    <p>Please wait for official communication before making travel arrangements.</p>
                     <p>
                         <a href="programmes.html">View programmes</a>
                         ·

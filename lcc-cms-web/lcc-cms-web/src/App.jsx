@@ -9,6 +9,7 @@ import { LearningProvider } from "./context/LearningContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
+import Activate from "./pages/Activate";
 import Apply from "./pages/Apply";
 import Unauthorized from "./pages/Unauthorized";
 import StudentDashboard from "./pages/StudentDashboard";
@@ -51,6 +52,7 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/login" replace />} />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/activate" element={<Activate />} />
                   <Route path="/apply" element={<Apply />} />
                   <Route path="/unauthorized" element={<Unauthorized />} />
 

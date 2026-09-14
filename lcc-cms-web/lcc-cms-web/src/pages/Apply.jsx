@@ -109,26 +109,27 @@ export default function Apply() {
     return (
       <div className="apply-page">
         <div className="apply-card">
-          <PageHeader title="Application submitted" />
+          <PageHeader title="Application Submitted Successfully" />
           <p className="apply-intro">
-            Thank you, {submitted.fullName.split(" ")[0]}. Your application
-            for <strong>{submitted.programme}</strong> has been received and
-            is now <strong>{submitted.status}</strong>, pending Registrar
-            review.
+            Thank you for applying to Lutheran Church College Banz.
           </p>
-          {submitted.documents && submitted.documents.length > 0 && (
-            <div className="apply-note">
-              <p>Documents received:</p>
-              <ul className="apply-doc-list">
-                {submitted.documents.map((d) => (
-                  <li key={d.path}>{d.type} — {d.fileName}</li>
-                ))}
-              </ul>
-            </div>
-          )}
           <p className="apply-note">
-            You'll receive a welcome email with login credentials at{" "}
-            {submitted.email} if your application is approved.
+            Your application has been received and is currently under review.
+          </p>
+          <p className="apply-note">
+            Please remain at your current location while your application is being assessed.
+          </p>
+          <p className="apply-note">
+            You will be contacted by the College via Email and/or WhatsApp if your application is successful.
+          </p>
+          <p className="apply-note">At this stage:</p>
+          <ul className="apply-doc-list">
+            <li className="field-ok">✅ No travel is required</li>
+            <li className="field-ok">✅ No registration is required</li>
+            <li className="field-ok">✅ No tuition payment is required</li>
+          </ul>
+          <p className="apply-note">
+            Please wait for official communication before making travel arrangements.
           </p>
           <a href={PUBLIC_SITE_URL} className="back-link">← Return to LCC website</a>
         </div>

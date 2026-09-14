@@ -79,6 +79,69 @@ public class AuthController : ControllerBase
             ExpiresAt = expires,
         });
     }
+
+    [AllowAnonymous]
+    [HttpPost("activate")]
+    public async Task<ActionResult<ActivateResponse>> Activate(
+        [FromBody] ActivateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var token = request.Token?.Trim() ?? "";
+        var password = request.Password ?? "";
+        var confirm = request.ConfirmPassword ?? "";
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return BadRequest("Activation token is required.");
+        }
+
+        if (password.Length < 8)
+        {
+            return BadRequest("Password must be at least 8 characters.");
+        }
+
+        if (!string.Equals(password, confirm, StringComparison.Ordinal))
+        {
+            return BadRequest("Password and confirmation do not match.");
+        }
+
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.ActivationToken == token, cancellationToken);
+
+        if (user is null)
+        {
+            return BadRequest("This activation link is not valid.");
+        }
+
+        if (user.ActivationUsed)
+        {
+            return BadRequest("This activation link has already been used.");
+        }
+
+        if (user.ActivationExpiresAt is null
+            || user.ActivationExpiresAt.Value <= DateTime.UtcNow)
+        {
+            return BadRequest("This activation link has expired.");
+        }
+
+        if (!string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("This account cannot be activated.");
+        }
+
+        user.PasswordHash = _passwordHasher.HashPassword(user, password);
+        user.ActivationUsed = true;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Account activated. UserId={UserId}", user.UserId);
+
+        return Ok(new ActivateResponse
+        {
+            Success = true,
+            Message = "Password set. You can now sign in.",
+            Email = user.Email,
+        });
+    }
 }
 
 public class LoginRequest
@@ -94,4 +157,18 @@ public class LoginResponse
     public string Email { get; set; } = "";
     public string Role { get; set; } = "";
     public DateTime ExpiresAt { get; set; }
+}
+
+public class ActivateRequest
+{
+    public string Token { get; set; } = "";
+    public string Password { get; set; } = "";
+    public string ConfirmPassword { get; set; } = "";
+}
+
+public class ActivateResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public string Email { get; set; } = "";
 }

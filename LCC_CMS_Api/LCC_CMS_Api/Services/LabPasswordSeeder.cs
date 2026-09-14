@@ -23,14 +23,17 @@ public static class LabPasswordSeeder
         try
         {
             users = await db.Users
-                .Where(u => u.PasswordHash == null && u.Status == "Active")
+                .Where(u =>
+                    u.PasswordHash == null
+                    && u.Status == "Active"
+                    && u.ActivationToken == null)
                 .ToListAsync();
         }
         catch (Exception ex)
         {
             logger.LogWarning(
                 ex,
-                "Could not seed lab passwords. Run database/LCC_CMS_Schema_Upgrade_Rev5_LocalAuth.sql to add users.password_hash.");
+                "Could not seed lab passwords. Run Rev5 (password_hash) and Rev6 (activation columns) against LCCCMSDB.");
             return;
         }
 

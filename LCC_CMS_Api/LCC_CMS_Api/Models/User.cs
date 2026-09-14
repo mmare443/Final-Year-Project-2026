@@ -13,6 +13,12 @@ public partial class User
 
     public string? PasswordHash { get; set; }
 
+    public string? ActivationToken { get; set; }
+
+    public DateTime? ActivationExpiresAt { get; set; }
+
+    public bool ActivationUsed { get; set; }
+
     public string Role { get; set; } = null!;
 
     public string Status { get; set; } = null!;

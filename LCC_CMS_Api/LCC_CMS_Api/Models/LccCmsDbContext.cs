@@ -993,6 +993,10 @@ public partial class LccCmsDbContext : DbContext
 
             entity.HasIndex(e => e.EntraId, "UQ__users__C4AD6C090DECB0C9").IsUnique();
 
+            entity.HasIndex(e => e.ActivationToken, "UX_users_activation_token")
+                .IsUnique()
+                .HasFilter("[activation_token] IS NOT NULL");
+
             entity.Property(e => e.UserId).HasColumnName("user_id");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(sysutcdatetime())")
@@ -1003,6 +1007,14 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(500)
                 .HasColumnName("password_hash");
+            entity.Property(e => e.ActivationToken)
+                .HasMaxLength(128)
+                .HasColumnName("activation_token");
+            entity.Property(e => e.ActivationExpiresAt)
+                .HasColumnName("activation_expires_at");
+            entity.Property(e => e.ActivationUsed)
+                .HasDefaultValue(false)
+                .HasColumnName("activation_used");
             entity.Property(e => e.EntraId)
                 .HasMaxLength(36)
                 .HasColumnName("entra_id");
