@@ -54,6 +54,12 @@ if (localJwtConfigured)
             {
                 OnMessageReceived = context =>
                 {
+                    if (HttpMethods.IsOptions(context.Request.Method))
+                    {
+                        context.NoResult();
+                        return Task.CompletedTask;
+                    }
+
                     var accessToken = context.Request.Query["access_token"];
                     if (!string.IsNullOrEmpty(accessToken)
                         && context.HttpContext.Request.Path.StartsWithSegments("/hubs/messages"))
@@ -172,14 +178,21 @@ builder.Services.AddScoped<LCC_CMS_Api.Services.CourseResultService>();
 builder.Services.AddSingleton<LCC_CMS_Api.Services.IEntraUserProvisioner, LCC_CMS_Api.Services.GraphEntraUserProvisioner>();
 
 // ---------------------------------------------------------------
-// CORS
+// CORS — SPA at http://localhost:5173 (and the static site).
+// POST JSON (login) sends an OPTIONS preflight; GET /api/health does not.
+// UseCors must run after UseRouting so preflight and error responses
+// receive Access-Control-Allow-Origin. Unhandled exceptions skip CORS
+// unless the exception pipeline also uses this policy.
 // ---------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SpaClient", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:8899")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:8899")
+              .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+              .WithHeaders("Authorization", "Content-Type", "Accept", "X-User-Id", "X-Requested-With")
               .AllowCredentials());
 });
 
@@ -208,6 +221,18 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.UseCors("SpaClient");
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new { error = "An error occurred." });
+    });
+});
+
+app.UseRouting();
 app.UseCors("SpaClient");
 
 // Static files

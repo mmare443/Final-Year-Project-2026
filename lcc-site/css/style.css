@@ -3,7 +3,8 @@
     --primary: #0A38FF;
     --secondary: #0D233A;
     --accent: #D4AF37;
-    --background: #F4F6F9;
+    --header-bg: #87CEEB;
+    --background: #D3D3D3;
     --white: #FFFFFF;
     --border: #E2E8F0;
     --text: #1E293B;
@@ -19,13 +20,14 @@
 
 html {
     scroll-behavior: smooth;
+    background: #D3D3D3 !important;
 }
 
 body {
     margin: 0;
     font-family: var(--font-main);
     color: var(--text);
-    background: var(--background);
+    background: #D3D3D3 !important;
     line-height: 1.6;
 }
 
@@ -122,7 +124,7 @@ a {
 
 .section-heading p {
     margin: 0;
-    color: var(--text-light);
+    color: var(--text);
 }
 
 .section-heading h1 {
@@ -288,7 +290,7 @@ a {
 .page-prose {
     max-width: 760px;
     margin: 0 auto 40px;
-    color: var(--text-light);
+    color: var(--text);
 }
 
 .page-prose p {

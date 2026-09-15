@@ -2,8 +2,8 @@
     position: sticky;
     top: 0;
     z-index: 1000;
-    background: var(--white);
-    border-bottom: 1px solid var(--border);
+    background: #87CEEB !important;
+    border-bottom: 1px solid #5BA8C9;
 }
 
 .header-inner {
@@ -56,8 +56,8 @@
 
 .main-nav a:hover,
 .main-nav a:focus-visible {
-    background: var(--background);
-    color: var(--primary);
+    background: rgba(255, 255, 255, 0.45);
+    color: var(--secondary);
 }
 
 .main-nav .nav-apply {
@@ -73,6 +73,7 @@
 
 .main-nav .nav-signin {
     border: 1px solid var(--primary);
+    background: var(--white);
     color: var(--primary);
 }
 
@@ -115,8 +116,8 @@
         flex-direction: column;
         align-items: stretch;
         padding: 12px;
-        background: var(--white);
-        border: 1px solid var(--border);
+        background: #87CEEB !important;
+        border: 1px solid #5BA8C9;
         border-radius: 0 0 12px 12px;
         box-shadow: var(--shadow);
     }

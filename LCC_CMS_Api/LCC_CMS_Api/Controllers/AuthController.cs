@@ -45,16 +45,40 @@ public class AuthController : ControllerBase
             return BadRequest("Email and password are required.");
         }
 
-        var user = await _dbContext.Users
-            .FirstOrDefaultAsync(
-                u => u.Email == email,
-                cancellationToken);
+        var row = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => u.Email == email)
+            .Select(u => new
+            {
+                u.UserId,
+                u.Email,
+                u.PasswordHash,
+                u.Status,
+                u.Role,
+                u.EntraId,
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (user is null
-            || !string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase)
-            || string.IsNullOrEmpty(user.PasswordHash)
-            || _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password)
-                == PasswordVerificationResult.Failed)
+        if (row is null
+            || !string.Equals(row.Status, "Active", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrEmpty(row.PasswordHash))
+        {
+            _logger.LogInformation("Login failed for {Email}", email);
+            return Unauthorized("Invalid email or password.");
+        }
+
+        var user = new User
+        {
+            UserId = row.UserId,
+            Email = row.Email,
+            PasswordHash = row.PasswordHash,
+            Status = row.Status,
+            Role = row.Role,
+            EntraId = row.EntraId,
+        };
+
+        if (_passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password)
+            == PasswordVerificationResult.Failed)
         {
             _logger.LogInformation("Login failed for {Email}", email);
             return Unauthorized("Invalid email or password.");

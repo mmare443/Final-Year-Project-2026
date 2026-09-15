@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMockAuth, ROLES } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
-import PageHeader from "../components/PageHeader";
+import lccLogo from "../assets/lcc-logo.png";
 import "./Login.css";
 
 const ROLE_ROUTES = {
@@ -38,10 +38,18 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <PageHeader brand="LCC-CMS" title="Sign In" subtitle="College Portal" />
-        <p className="login-intro">
-          Sign in with your LCC email and password to open the College portal.
-        </p>
+        <div className="login-brand-block">
+          <img
+            src={lccLogo}
+            alt="Lutheran Church College"
+            className="login-hero-logo"
+          />
+          <p className="login-brand-mark">LCC-CMS</p>
+          <h1 className="login-heading">Welcome Back</h1>
+          <p className="login-intro">
+            Sign in with your LCC account to access the appropriate College portal.
+          </p>
+        </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-label" htmlFor="login-email">Email</label>

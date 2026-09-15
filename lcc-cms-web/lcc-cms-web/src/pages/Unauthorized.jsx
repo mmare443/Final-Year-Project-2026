@@ -15,7 +15,7 @@ export default function Unauthorized() {
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", gap: 12,
-      fontFamily: "var(--font-main)", background: "var(--background)",
+      fontFamily: "var(--font-main)", background: "#D3D3D3",
       textAlign: "center", padding: 24,
     }}>
       <PageHeader title="Not authorized" subtitle="This portal is limited to your assigned role." />
