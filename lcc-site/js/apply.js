@@ -153,13 +153,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             await res.json();
             form.hidden = true;
             if (successEl) {
+                const c = window.LCC_CONTACT || {};
                 successEl.hidden = false;
                 successEl.innerHTML = `
                     <h2>Application Submitted Successfully</h2>
-                    <p>Thank you for applying to Lutheran Church College Banz.</p>
+                    <p>Thank you for applying to ${c.institution || "Lutheran Church College Banz"}.</p>
                     <p>Your application has been received and is currently under review.</p>
                     <p>Please remain at your current location while your application is being assessed.</p>
                     <p>You will be contacted by the College via Email and/or WhatsApp if your application is successful.</p>
+                    <p>Application enquiries: ${c.applicationContact || ""} (${c.applicationEmail || ""}).</p>
                     <p>At this stage:</p>
                     <ul>
                         <li>✅ No travel is required</li>

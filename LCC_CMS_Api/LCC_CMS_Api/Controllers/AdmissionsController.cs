@@ -40,6 +40,7 @@ public class AdmissionsController : ControllerBase
     private readonly IFileStorage _fileStorage;
     private readonly IEntraUserProvisioner _entraUsers;
     private readonly PortalSettings _portal;
+    private readonly ContactSettings _contact;
     private readonly ILogger<AdmissionsController> _logger;
 
     public AdmissionsController(
@@ -48,6 +49,7 @@ public class AdmissionsController : ControllerBase
         IFileStorage fileStorage,
         IEntraUserProvisioner entraUsers,
         IOptions<PortalSettings> portal,
+        IOptions<ContactSettings> contact,
         ILogger<AdmissionsController> logger)
     {
         _dbContext = dbContext;
@@ -55,6 +57,7 @@ public class AdmissionsController : ControllerBase
         _fileStorage = fileStorage;
         _entraUsers = entraUsers;
         _portal = portal.Value;
+        _contact = contact.Value;
         _logger = logger;
     }
 
@@ -66,7 +69,6 @@ public class AdmissionsController : ControllerBase
             .AsNoTracking()
             .Include(a => a.Programme)
             .Include(a => a.Student)
-                .ThenInclude(s => s!.StudentNavigation)
             .Include(a => a.AdmissionDocuments)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
@@ -440,6 +442,7 @@ public class AdmissionsController : ControllerBase
             OnboardingStatus = OnboardingStatus.From(admission),
             ActivationExpiresAt = user?.ActivationExpiresAt,
             ActivationUsed = user?.ActivationUsed ?? false,
+            Contact = ContactRecord.From(_contact),
         });
     }
 
@@ -642,4 +645,5 @@ public class ActivationPreviewResponse
     public string OnboardingStatus { get; set; } = "";
     public DateTime? ActivationExpiresAt { get; set; }
     public bool ActivationUsed { get; set; }
+    public ContactRecord? Contact { get; set; }
 }

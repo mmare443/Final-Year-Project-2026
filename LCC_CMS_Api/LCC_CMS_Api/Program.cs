@@ -25,6 +25,8 @@ builder.Services.Configure<LCC_CMS_Api.Services.JwtSettings>(
     builder.Configuration.GetSection(LCC_CMS_Api.Services.JwtSettings.SectionName));
 builder.Services.Configure<LCC_CMS_Api.Services.PortalSettings>(
     builder.Configuration.GetSection(LCC_CMS_Api.Services.PortalSettings.SectionName));
+builder.Services.Configure<LCC_CMS_Api.Services.ContactSettings>(
+    builder.Configuration.GetSection(LCC_CMS_Api.Services.ContactSettings.SectionName));
 builder.Services.AddSingleton<Microsoft.AspNetCore.Identity.IPasswordHasher<User>, Microsoft.AspNetCore.Identity.PasswordHasher<User>>();
 
 if (localJwtConfigured)

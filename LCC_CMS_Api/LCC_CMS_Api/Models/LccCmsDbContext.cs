@@ -883,9 +883,17 @@ public partial class LccCmsDbContext : DbContext
 
             entity.HasIndex(e => e.DepartmentId, "IX_staff_department");
 
+            entity.HasIndex(e => e.StaffNumber, "UX_staff_staff_number").IsUnique();
+
             entity.Property(e => e.StaffId)
                 .ValueGeneratedNever()
                 .HasColumnName("staff_id");
+            entity.Property(e => e.StaffNumber)
+                .HasMaxLength(20)
+                .HasColumnName("staff_number");
+            entity.Property(e => e.FullName)
+                .HasMaxLength(150)
+                .HasColumnName("full_name");
             entity.Property(e => e.DepartmentId).HasColumnName("department_id");
             entity.Property(e => e.EmploymentDetails)
                 .HasMaxLength(500)

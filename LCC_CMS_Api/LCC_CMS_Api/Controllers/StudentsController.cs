@@ -140,6 +140,7 @@ public class StudentsController : ControllerBase
             .AsNoTracking()
             .OrderBy(s => s.StudentNumber)
             .ToListAsync();
+        await HydrateUserEmailsAsync(students);
 
         return Ok(students.Select(ToProfile));
     }
@@ -151,6 +152,7 @@ public class StudentsController : ControllerBase
         var student = await StudentGraph()
             .FirstOrDefaultAsync(s => s.StudentNumber == id);
         if (student is null) return NotFound();
+        await HydrateUserEmailsAsync(new[] { student });
 
         ApplyEdits(student, request);
         await _dbContext.SaveChangesAsync();
@@ -160,7 +162,6 @@ public class StudentsController : ControllerBase
     private IQueryable<Student> StudentGraph()
     {
         return _dbContext.Students
-            .Include(s => s.StudentNavigation)
             .Include(s => s.Programme)
             .Include(s => s.Admission)
             .Include(s => s.Documents);
@@ -191,7 +192,36 @@ public class StudentsController : ControllerBase
             return (null, NotFound());
         }
 
+        await HydrateUserEmailsAsync(new[] { student }, cancellationToken);
         return (student, null);
+    }
+
+    private async Task HydrateUserEmailsAsync(
+        IReadOnlyCollection<Student> students,
+        CancellationToken cancellationToken = default)
+    {
+        if (students.Count == 0) return;
+
+        var ids = students.Select(s => s.StudentId).Distinct().ToList();
+        var emails = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => ids.Contains(u.UserId))
+            .Select(u => new { u.UserId, u.Email })
+            .ToListAsync(cancellationToken);
+        var byId = emails.ToDictionary(u => u.UserId, u => u.Email);
+
+        foreach (var student in students)
+        {
+            byId.TryGetValue(student.StudentId, out var email);
+            student.StudentNavigation = new User
+            {
+                UserId = student.StudentId,
+                Email = email ?? "",
+                EntraId = "",
+                Role = "Student",
+                Status = "Active",
+            };
+        }
     }
 
     private static void ApplyEdits(Student student, StudentProfileEditRequest request)

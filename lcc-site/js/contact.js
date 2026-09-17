@@ -14,9 +14,10 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        const c = window.LCC_CONTACT || {};
         form.reset();
         status.classList.add("is-success");
         status.textContent =
-            "Thank you. Your message has been recorded on this page. For a formal enquiry, email info@lccb.ac.pg or phone the College.";
+            `Thank you. Your message has been recorded on this page. For a formal enquiry, email ${c.primaryEmail || "the College"} or phone ${c.phone || "the College"}.`;
     });
 });

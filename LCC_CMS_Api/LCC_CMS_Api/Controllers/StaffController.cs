@@ -3,6 +3,7 @@ using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -30,17 +31,20 @@ public class StaffController : ControllerBase
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtSettings _jwtSettings;
     private readonly ICurrentUser _currentUser;
+    private readonly ILogger<StaffController> _logger;
 
     public StaffController(
         LccCmsDbContext dbContext,
         IPasswordHasher<User> passwordHasher,
         IOptions<JwtSettings> jwtSettings,
-        ICurrentUser currentUser)
+        ICurrentUser currentUser,
+        ILogger<StaffController> logger)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _jwtSettings = jwtSettings.Value;
         _currentUser = currentUser;
+        _logger = logger;
     }
 
     [HttpGet("workload")]
@@ -56,6 +60,7 @@ public class StaffController : ControllerBase
 
         var staff = await WorkloadStaffQuery(access.HoDDepartmentId)
             .ToListAsync(cancellationToken);
+        await HydrateStaffUsersAsync(staff, cancellationToken);
 
         return Ok(staff.Select(s => ToWorkload(s, resolvedSemester.SemesterId)));
     }
@@ -81,6 +86,7 @@ public class StaffController : ControllerBase
             return exists ? StatusCode(StatusCodes.Status403Forbidden) : NotFound();
         }
 
+        await HydrateStaffUsersAsync(new[] { staff }, cancellationToken);
         return Ok(ToWorkload(staff, resolvedSemester.SemesterId));
     }
 
@@ -89,11 +95,14 @@ public class StaffController : ControllerBase
     {
         var staff = await StaffGraph()
             .AsNoTracking()
+            .OrderBy(s => s.StaffId)
+            .ToListAsync(cancellationToken);
+        await HydrateStaffUsersAsync(staff, cancellationToken);
+
+        return Ok(staff
             .OrderBy(s => s.StaffNavigation.Role)
             .ThenBy(s => s.StaffNavigation.Email)
-            .ToListAsync(cancellationToken);
-
-        return Ok(staff.Select(ToRecord));
+            .Select(ToRecord));
     }
 
     [HttpGet("{id:int}")]
@@ -103,6 +112,7 @@ public class StaffController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.StaffId == id, cancellationToken);
         if (staff is null) return NotFound();
+        await HydrateStaffUsersAsync(new[] { staff }, cancellationToken);
         return Ok(ToRecord(staff));
     }
 
@@ -112,7 +122,8 @@ public class StaffController : ControllerBase
         [FromBody] StaffCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var error = ValidateWrite(request.Email, request.Role, request.JobTitle, request.EmploymentDetails);
+        var error = ValidateWrite(
+            request.FullName, request.Email, request.Role, request.JobTitle, request.EmploymentDetails);
         if (error is not null) return error;
 
         var email = request.Email.Trim();
@@ -149,24 +160,44 @@ public class StaffController : ControllerBase
         }
 
         _dbContext.Users.Add(user);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return WriteFailed(ex, "create user");
+        }
 
         var staff = new Staff
         {
             StaffId = user.UserId,
+            StaffNumber = await NextStaffNumberAsync(cancellationToken),
+            FullName = request.FullName.Trim(),
             DepartmentId = request.DepartmentId,
             JobTitle = request.JobTitle.Trim(),
             EmploymentDetails = string.IsNullOrWhiteSpace(request.EmploymentDetails)
                 ? null
                 : request.EmploymentDetails.Trim(),
+            StaffNavigation = user,
         };
         _dbContext.Staff.Add(staff);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return WriteFailed(ex, "create staff");
+        }
 
         var created = await StaffGraph()
             .AsNoTracking()
             .FirstAsync(s => s.StaffId == staff.StaffId, cancellationToken);
+        await HydrateStaffUsersAsync(new[] { created }, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = created.StaffId }, ToRecord(created));
     }
 
@@ -177,7 +208,8 @@ public class StaffController : ControllerBase
         [FromBody] StaffUpdateRequest request,
         CancellationToken cancellationToken)
     {
-        var error = ValidateWrite(request.Email, request.Role, request.JobTitle, request.EmploymentDetails);
+        var error = ValidateWrite(
+            request.FullName, request.Email, request.Role, request.JobTitle, request.EmploymentDetails);
         if (error is not null) return error;
 
         var email = request.Email.Trim();
@@ -188,9 +220,14 @@ public class StaffController : ControllerBase
                 "Role must be Lecturer, HoD, Registrar/Admin (or RegistrarAdmin), or Management/Principal (or ManagementPrincipal).");
         }
 
-        var staff = await StaffGraph()
+        var staff = await _dbContext.Staff
+            .Include(s => s.Department)
             .FirstOrDefaultAsync(s => s.StaffId == id, cancellationToken);
         if (staff is null) return NotFound();
+
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserId == id, cancellationToken);
+        if (user is null) return NotFound();
+        staff.StaffNavigation = user;
 
         if (!await _dbContext.Departments.AnyAsync(d => d.DepartmentId == request.DepartmentId, cancellationToken))
         {
@@ -219,24 +256,32 @@ public class StaffController : ControllerBase
                 : "Inactive";
         }
 
+        staff.FullName = request.FullName.Trim();
         staff.DepartmentId = request.DepartmentId;
         staff.JobTitle = request.JobTitle.Trim();
         staff.EmploymentDetails = string.IsNullOrWhiteSpace(request.EmploymentDetails)
             ? null
             : request.EmploymentDetails.Trim();
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return WriteFailed(ex, "update staff");
+        }
 
         var updated = await StaffGraph()
             .AsNoTracking()
             .FirstAsync(s => s.StaffId == id, cancellationToken);
+        await HydrateStaffUsersAsync(new[] { updated }, cancellationToken);
         return Ok(ToRecord(updated));
     }
 
     private IQueryable<Staff> StaffGraph()
     {
         return _dbContext.Staff
-            .Include(s => s.StaffNavigation)
             .Include(s => s.Department)
                 .ThenInclude(d => d.Faculty);
     }
@@ -245,7 +290,6 @@ public class StaffController : ControllerBase
     {
         var query = _dbContext.Staff
             .AsNoTracking()
-            .Include(s => s.StaffNavigation)
             .Include(s => s.Department)
             .Include(s => s.CourseAllocations)
                 .ThenInclude(a => a.Course)
@@ -256,9 +300,46 @@ public class StaffController : ControllerBase
             query = query.Where(s => s.DepartmentId == departmentId);
         }
 
-        return query
-            .OrderBy(s => s.StaffNavigation.Role)
-            .ThenBy(s => s.StaffNavigation.Email);
+        return query.OrderBy(s => s.StaffId);
+    }
+
+    private async Task HydrateStaffUsersAsync(
+        IReadOnlyCollection<Staff> staff,
+        CancellationToken cancellationToken)
+    {
+        if (staff.Count == 0) return;
+
+        var ids = staff.Select(s => s.StaffId).Distinct().ToList();
+        var users = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => ids.Contains(u.UserId))
+            .Select(u => new { u.UserId, u.Email, u.Role, u.Status, u.EntraId })
+            .ToListAsync(cancellationToken);
+        var byId = users.ToDictionary(u => u.UserId);
+
+        foreach (var row in staff)
+        {
+            if (!byId.TryGetValue(row.StaffId, out var user))
+            {
+                row.StaffNavigation = new User
+                {
+                    UserId = row.StaffId,
+                    Email = "",
+                    Role = "",
+                    Status = "Inactive",
+                    EntraId = "",
+                };
+                continue;
+            }
+            row.StaffNavigation = new User
+            {
+                UserId = user.UserId,
+                Email = user.Email,
+                Role = user.Role,
+                Status = user.Status,
+                EntraId = user.EntraId,
+            };
+        }
     }
 
     private async Task<(int? HoDDepartmentId, ActionResult? Error)> AuthorizeWorkloadAsync(
@@ -334,6 +415,8 @@ public class StaffController : ControllerBase
         return new StaffWorkloadRecord
         {
             StaffId = staff.StaffId,
+            StaffNumber = staff.StaffNumber,
+            FullName = staff.FullName,
             Email = staff.StaffNavigation.Email,
             Role = RoleNames.ToPolicyRole(staff.StaffNavigation.Role),
             JobTitle = staff.JobTitle,
@@ -351,8 +434,39 @@ public class StaffController : ControllerBase
         };
     }
 
-    private ActionResult? ValidateWrite(string? email, string? role, string? jobTitle, string? employmentDetails)
+    private async Task<string> NextStaffNumberAsync(CancellationToken cancellationToken)
     {
+        var year = DateTime.UtcNow.Year;
+        var prefix = $"STF-{year}-";
+        var existing = await _dbContext.Staff
+            .AsNoTracking()
+            .Where(s => s.StaffNumber.StartsWith(prefix))
+            .Select(s => s.StaffNumber)
+            .ToListAsync(cancellationToken);
+
+        var maxSeq = 0;
+        foreach (var number in existing)
+        {
+            var suffix = number.Length > prefix.Length ? number[prefix.Length..] : "";
+            if (int.TryParse(suffix, out var seq) && seq > maxSeq)
+            {
+                maxSeq = seq;
+            }
+        }
+
+        if (maxSeq >= 999)
+        {
+            throw new InvalidOperationException($"Staff ID sequence for {year} is exhausted.");
+        }
+
+        return $"{prefix}{(maxSeq + 1).ToString("D3")}";
+    }
+
+    private ActionResult? ValidateWrite(
+        string? fullName, string? email, string? role, string? jobTitle, string? employmentDetails)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) return BadRequest("Full name is required.");
+        if (fullName.Trim().Length > 150) return BadRequest("Full name must be 150 characters or fewer.");
         if (string.IsNullOrWhiteSpace(email)) return BadRequest("Email is required.");
         if (email.Trim().Length > 255) return BadRequest("Email must be 255 characters or fewer.");
         if (string.IsNullOrWhiteSpace(role)) return BadRequest("Role is required.");
@@ -360,7 +474,27 @@ public class StaffController : ControllerBase
         if (jobTitle.Trim().Length > 100) return BadRequest("Job title must be 100 characters or fewer.");
         if (employmentDetails is { Length: > 500 })
         {
-            return BadRequest("Employment details must be 500 characters or fewer.");
+            return BadRequest("Additional staff information must be 500 characters or fewer.");
+        }
+
+        return null;
+    }
+
+    private ObjectResult WriteFailed(Exception ex, string operation)
+    {
+        var sql = FindSqlException(ex);
+        var detail = sql?.Message ?? ex.GetBaseException().Message;
+        _logger.LogError(ex, "Staff {Operation} failed: {Detail}", operation, detail);
+        return StatusCode(
+            StatusCodes.Status500InternalServerError,
+            $"Staff {operation} failed: {detail}");
+    }
+
+    private static SqlException? FindSqlException(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql) return sql;
         }
 
         return null;
@@ -374,6 +508,8 @@ public class StaffController : ControllerBase
         return new StaffRecord
         {
             StaffId = staff.StaffId,
+            StaffNumber = staff.StaffNumber,
+            FullName = staff.FullName,
             UserId = user.UserId,
             Email = user.Email,
             Role = RoleNames.ToPolicyRole(user.Role),
@@ -392,6 +528,8 @@ public class StaffController : ControllerBase
 public class StaffRecord
 {
     public int StaffId { get; set; }
+    public string StaffNumber { get; set; } = "";
+    public string FullName { get; set; } = "";
     public int UserId { get; set; }
     public string Email { get; set; } = "";
     public string Role { get; set; } = "";
@@ -407,6 +545,7 @@ public class StaffRecord
 
 public class StaffCreateRequest
 {
+    public string FullName { get; set; } = "";
     public string Email { get; set; } = "";
     public string Role { get; set; } = "";
     public int DepartmentId { get; set; }
@@ -416,6 +555,7 @@ public class StaffCreateRequest
 
 public class StaffUpdateRequest
 {
+    public string FullName { get; set; } = "";
     public string Email { get; set; } = "";
     public string Role { get; set; } = "";
     public string? Status { get; set; }
@@ -427,6 +567,8 @@ public class StaffUpdateRequest
 public class StaffWorkloadRecord
 {
     public int StaffId { get; set; }
+    public string StaffNumber { get; set; } = "";
+    public string FullName { get; set; } = "";
     public string Email { get; set; } = "";
     public string Role { get; set; } = "";
     public string JobTitle { get; set; } = "";

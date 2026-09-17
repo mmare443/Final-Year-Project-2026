@@ -111,9 +111,13 @@ CREATE INDEX IX_students_programme ON students(programme_id);
 
 CREATE TABLE staff (
     staff_id            INT             PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    staff_number        NVARCHAR(20)    NOT NULL,
+    full_name           NVARCHAR(150)   NOT NULL,
     department_id       INT             NOT NULL REFERENCES departments(department_id),
     job_title           NVARCHAR(100)   NOT NULL,
-    employment_details  NVARCHAR(500)   NULL
+    employment_details  NVARCHAR(500)   NULL,
+    CONSTRAINT UQ_staff_staff_number UNIQUE (staff_number),
+    CONSTRAINT CK_staff_staff_number CHECK (staff_number LIKE N'STF-[0-9][0-9][0-9][0-9]-[0-9][0-9][0-9]')
 );
 CREATE INDEX IX_staff_department ON staff(department_id);
 
