@@ -19,19 +19,20 @@ const NAV_BY_TITLE = {
     { label: "Academic Oversight", path: "/registrar/academic" },
     "HoD Reports",
     { label: "Student Records", path: "/registrar/students" },
-    "Profile",
+    { label: "Profile", path: "/registrar/profile" },
   ],
   [JOB_TITLES.ADMIN_OFFICER]: [
     { label: "Overview", path: "/registrar" },
     { label: "Admissions", path: "/registrar" },
     { label: "Student Records", path: "/registrar/students" },
     { label: "Staff Management", path: "/registrar/staff" },
-    "System Administration",
-    "Profile",
+    { label: "System Administration", path: "/registrar/admin" },
+    { label: "Profile", path: "/registrar/profile" },
   ],
   [JOB_TITLES.ACCOUNTS]: [
     { label: "Overview", path: "/registrar" },
-    "Finance", "Profile",
+    "Finance",
+    { label: "Profile", path: "/registrar/profile" },
   ],
 };
 

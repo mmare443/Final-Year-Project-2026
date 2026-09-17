@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { apiFetch } from "../api";
 import { useMockData, API_ORIGIN } from "../context/MockDataContext";
+import { CONTACT } from "../config/contactConfig";
 import "./AdmissionsQueue.css";
 
 function DocumentsCell({ documents }) {
@@ -68,7 +69,7 @@ export default function AdmissionsQueue() {
     try {
       await decideApplication(id, decision);
     } catch (err) {
-      alert("Couldn't reach the backend API — check that dotnet run is still running.");
+      alert(err.message || "Couldn't complete that decision.");
     } finally {
       setDecidingId(null);
     }
@@ -194,6 +195,17 @@ export default function AdmissionsQueue() {
             ) : (
               "—"
             )}
+          </dd>
+          <dt>College contact</dt>
+          <dd>
+            {(preview.contact?.institution || CONTACT.institution)} ·{" "}
+            {preview.contact?.phone || CONTACT.phone} ·{" "}
+            {preview.contact?.primaryEmail || CONTACT.primaryEmail}
+          </dd>
+          <dt>Application contact</dt>
+          <dd>
+            {preview.contact?.applicationContact || CONTACT.applicationContact}{" "}
+            ({preview.contact?.applicationEmail || CONTACT.applicationEmail})
           </dd>
         </dl>
         {localActivateHref && (

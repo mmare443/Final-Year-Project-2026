@@ -1,4 +1,5 @@
 import lccLogo from "../assets/lcc-logo.png";
+import { CONTACT } from "../config/contactConfig";
 import "./PageHeader.css";
 
 /**
@@ -16,7 +17,7 @@ export default function PageHeader({ brand, title, subtitle }) {
       <div className="page-header">
         <img
           src={lccLogo}
-          alt="Lutheran Church College"
+          alt={CONTACT.institution}
           className="page-header-logo"
         />
         <div className="page-header-text">

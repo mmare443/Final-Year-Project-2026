@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { useMockAuth, ROLE_LABELS } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
+import { CONTACT } from "../config/contactConfig";
 import lccLogo from "../assets/lcc-logo.png";
 import PageHeader from "./PageHeader";
 import "./DashboardLayout.css";
@@ -35,7 +36,7 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
     <div className="dash-shell">
       <aside className="dash-sidebar">
         <div className="dash-logo">
-          <img src={lccLogo} alt="Lutheran Church College, Banz" className="dash-logo-img" />
+          <img src={lccLogo} alt={CONTACT.institution} className="dash-logo-img" />
           <span className="dash-logo-text">LCC-CMS</span>
         </div>
         <nav className="dash-nav">
@@ -106,6 +107,9 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
         </header>
 
         <main className="dash-content">{children}</main>
+        <p className="dash-contact-footer">
+          {CONTACT.institution} · {CONTACT.phone} · {CONTACT.primaryEmail}
+        </p>
       </div>
     </div>
   );

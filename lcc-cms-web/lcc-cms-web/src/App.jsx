@@ -31,6 +31,8 @@ import AcademicStructure from "./pages/AcademicStructure";
 import CourseRegistrations from "./pages/CourseRegistrations";
 import StaffManagement from "./pages/StaffManagement";
 import AccommodationWelfare from "./pages/AccommodationWelfare";
+import RegistrarSystemAdmin from "./pages/RegistrarSystemAdmin";
+import RegistrarProfile from "./pages/RegistrarProfile";
 import ManagementPrincipalDashboard from "./pages/ManagementPrincipalDashboard";
 import EnrolmentAnalytics from "./pages/EnrolmentAnalytics";
 import StaffOverview from "./pages/StaffOverview";
@@ -245,6 +247,22 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
                         <AccommodationWelfare />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/registrar/admin"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
+                        <RegistrarSystemAdmin />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/registrar/profile"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
+                        <RegistrarProfile />
                       </ProtectedRoute>
                     }
                   />

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useMockData } from "../context/MockDataContext";
 import { API_ORIGIN, apiFetch } from "../api";
 import { PUBLIC_SITE_URL } from "../config";
+import { CONTACT } from "../config/contactConfig";
+import CollegeContact from "../components/CollegeContact";
 import PageHeader from "../components/PageHeader";
 import "./Apply.css";
 
@@ -111,7 +113,7 @@ export default function Apply() {
         <div className="apply-card">
           <PageHeader title="Application Submitted Successfully" />
           <p className="apply-intro">
-            Thank you for applying to Lutheran Church College Banz.
+            Thank you for applying to {CONTACT.institution}.
           </p>
           <p className="apply-note">
             Your application has been received and is currently under review.
@@ -121,6 +123,7 @@ export default function Apply() {
           </p>
           <p className="apply-note">
             You will be contacted by the College via Email and/or WhatsApp if your application is successful.
+            Application contact: {CONTACT.applicationContact} ({CONTACT.applicationEmail}).
           </p>
           <p className="apply-note">At this stage:</p>
           <ul className="apply-doc-list">
@@ -142,13 +145,14 @@ export default function Apply() {
         <div className="apply-card">
         <PageHeader
           title="Apply"
-          subtitle="Lutheran Church College, Banz"
+          subtitle={CONTACT.institution}
         />
         <p className="apply-intro">
           Complete the form and attach all required documents. Per LCCB's
           admissions policy, applications without required documents will
           not be accepted.
         </p>
+        <CollegeContact variant="apply" />
 
         {error && <div className="apply-error">{error}</div>}
 

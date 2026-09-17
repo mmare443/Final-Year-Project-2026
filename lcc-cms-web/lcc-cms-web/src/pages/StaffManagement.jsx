@@ -1,18 +1,97 @@
 import { useCallback, useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useAcademicStructure } from "../context/AcademicStructureContext";
-import { API_ORIGIN, apiFetch } from "../api";
+import { API_ORIGIN, API_UNREACHABLE, apiFetch, isNetworkFailure, readApiError } from "../api";
+import { CONTACT } from "../config/contactConfig";
 import { REGISTRAR_NAV } from "./registrarNav";
 import "./AcademicStructure.css";
 import "./StudentRecords.css";
+import "./StaffManagement.css";
 
 const emptyForm = {
+  fullName: "",
   email: "",
   role: "Lecturer",
   departmentId: "",
   jobTitle: "",
   employmentDetails: "",
+  status: "Active",
 };
+
+function toForm(row) {
+  return {
+    fullName: row.fullName || "",
+    email: row.email || "",
+    role: row.role || "Lecturer",
+    departmentId: String(row.departmentId || ""),
+    jobTitle: row.jobTitle || "",
+    employmentDetails: row.employmentDetails || "",
+    status: row.status || "Active",
+  };
+}
+
+function staffPayload(form) {
+  return {
+    fullName: form.fullName,
+    email: form.email,
+    role: form.role,
+    departmentId: Number(form.departmentId),
+    jobTitle: form.jobTitle,
+    employmentDetails: form.employmentDetails || null,
+    status: form.status,
+  };
+}
+
+function printStaffProfile(row) {
+  const win = window.open("", "_blank", "noopener,width=800,height=900");
+  if (!win) return;
+  const extra = row.employmentDetails
+    ? `<p>${escapeHtml(row.employmentDetails)}</p>`
+    : "<p>—</p>";
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Staff Profile — ${escapeHtml(row.staffNumber || "")}</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; color: #0D233A; margin: 32px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 16px; margin: 24px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    .muted { color: #5A6B80; font-size: 12px; }
+    dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; }
+    dt { font-weight: 700; }
+    dd { margin: 0; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(CONTACT.institution)}</h1>
+  <p class="muted">Staff Profile Report</p>
+  <h2>${escapeHtml(row.fullName || "—")} <span class="muted">${escapeHtml(row.staffNumber || "")}</span></h2>
+  <dl>
+    <dt>Staff ID</dt><dd>${escapeHtml(row.staffNumber || "—")}</dd>
+    <dt>Full Name</dt><dd>${escapeHtml(row.fullName || "—")}</dd>
+    <dt>Email</dt><dd>${escapeHtml(row.email || "—")}</dd>
+    <dt>Role</dt><dd>${escapeHtml(row.role || "—")}</dd>
+    <dt>Job Title</dt><dd>${escapeHtml(row.jobTitle || "—")}</dd>
+    <dt>Department</dt><dd>${escapeHtml(row.departmentName || "—")}</dd>
+    <dt>Faculty</dt><dd>${escapeHtml(row.facultyName || "—")}</dd>
+    <dt>Status</dt><dd>${escapeHtml(row.status || "—")}</dd>
+  </dl>
+  <h2>Additional Staff Information</h2>
+  ${extra}
+  <p class="muted">${escapeHtml(CONTACT.postalOneLine)} · ${escapeHtml(CONTACT.phone)} · ${escapeHtml(CONTACT.primaryEmail)}</p>
+  <script>window.onload = function () { window.print(); }<\/script>
+</body>
+</html>`);
+  win.document.close();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 export default function StaffManagement() {
   const { departments, fetchAll } = useAcademicStructure();
@@ -23,18 +102,18 @@ export default function StaffManagement() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
 
   const loadStaff = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await apiFetch(`${API_ORIGIN}/api/staff`);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      if (!res.ok) throw new Error(await readApiError(res));
       setStaff(await res.json());
       setApiError(null);
-    } catch {
-      setApiError(
-        "Couldn't reach the backend API. Make sure `dotnet run` is running on http://localhost:5000."
-      );
+    } catch (err) {
+      setApiError(isNetworkFailure(err) ? API_UNREACHABLE : (err.message || API_UNREACHABLE));
     } finally {
       setIsLoading(false);
     }
@@ -45,28 +124,38 @@ export default function StaffManagement() {
     loadStaff();
   }, [fetchAll, loadStaff]);
 
-  const handleCreate = async (e) => {
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setSaveError(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (row) => {
+    setEditingId(row.staffId);
+    setForm(toForm(row));
+    setSaveError(null);
+    setFormOpen(true);
+    setViewRow(null);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await apiFetch(`${API_ORIGIN}/api/staff`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: form.email,
-          role: form.role,
-          departmentId: Number(form.departmentId),
-          jobTitle: form.jobTitle,
-          employmentDetails: form.employmentDetails || null,
-        }),
-      });
-      if (!res.ok) {
-        const message = await res.text().catch(() => null);
-        throw new Error(message || `API returned ${res.status}`);
-      }
+      const res = await apiFetch(
+        editingId == null ? `${API_ORIGIN}/api/staff` : `${API_ORIGIN}/api/staff/${editingId}`,
+        {
+          method: editingId == null ? "POST" : "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(staffPayload(form)),
+        }
+      );
+      if (!res.ok) throw new Error(await readApiError(res));
       setFormOpen(false);
       setForm(emptyForm);
+      setEditingId(null);
       await loadStaff();
     } catch (err) {
       setSaveError(err.message || "Couldn't save this staff member.");
@@ -78,22 +167,29 @@ export default function StaffManagement() {
   return (
     <DashboardLayout title="Staff Management" navItems={REGISTRAR_NAV}>
       <p style={{ color: "var(--text-light)", fontSize: 13, marginBottom: 18 }}>
-        Create faculty and staff users (staff_id = user_id). Role must be a
-        staff SQL role, not Student.
+        Create faculty and staff users. Staff IDs are generated as STF-YYYY-NNN.
+        Internal user id remains staff_id = user_id.
       </p>
 
       {apiError && <div className="records-error">{apiError}</div>}
 
       <div className="as-toolbar">
-        <button className="as-add-btn" onClick={() => { setFormOpen(true); setSaveError(null); }}>
-          + Add staff
-        </button>
+        <button className="as-add-btn" onClick={openCreate}>+ Add staff</button>
       </div>
 
       {formOpen && (
-        <form className="as-form" onSubmit={handleCreate}>
+        <form className="as-form" onSubmit={handleSubmit}>
           {saveError && <div className="as-error">{saveError}</div>}
+          <h3 className="staff-form-title">{editingId == null ? "Add Staff" : "Edit Staff"}</h3>
           <div className="as-form-fields">
+            <label>Full Name
+              <input
+                value={form.fullName}
+                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                required
+                maxLength={150}
+              />
+            </label>
             <label>Email
               <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
             </label>
@@ -104,6 +200,9 @@ export default function StaffManagement() {
                 <option value="RegistrarAdmin">Registrar/Admin</option>
                 <option value="ManagementPrincipal">Management/Principal</option>
               </select>
+            </label>
+            <label>Job Title
+              <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} required />
             </label>
             <label>Department
               <select
@@ -119,15 +218,26 @@ export default function StaffManagement() {
                 ))}
               </select>
             </label>
-            <label>Job title
-              <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} required />
-            </label>
-            <label>Employment details
-              <input value={form.employmentDetails} onChange={(e) => setForm({ ...form, employmentDetails: e.target.value })} />
+            {editingId != null && (
+              <label>Status
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </label>
+            )}
+            <label>Additional Staff Information
+              <input
+                value={form.employmentDetails}
+                onChange={(e) => setForm({ ...form, employmentDetails: e.target.value })}
+                maxLength={500}
+              />
             </label>
           </div>
           <div className="as-form-actions">
-            <button type="submit" className="as-save-btn" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+            <button type="submit" className="as-save-btn" disabled={saving}>
+              {saving ? "Saving…" : (editingId == null ? "Save" : "Save changes")}
+            </button>
             <button type="button" className="as-cancel-btn" onClick={() => setFormOpen(false)}>Cancel</button>
           </div>
         </form>
@@ -139,30 +249,67 @@ export default function StaffManagement() {
         <table className="records-table">
           <thead>
             <tr>
+              <th>Staff ID</th>
+              <th>Full Name</th>
               <th>Email</th>
               <th>Role</th>
-              <th>Job title</th>
+              <th>Job Title</th>
               <th>Department</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {staff.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ color: "var(--text-light)" }}>No staff records.</td>
+                <td colSpan={8} style={{ color: "var(--text-light)" }}>No staff records.</td>
               </tr>
             )}
             {staff.map((row) => (
               <tr key={row.staffId}>
+                <td>{row.staffNumber || "—"}</td>
+                <td>{row.fullName || "—"}</td>
                 <td>{row.email}</td>
                 <td>{row.role}</td>
                 <td>{row.jobTitle}</td>
                 <td>{row.departmentName}</td>
                 <td>{row.status}</td>
+                <td>
+                  <div className="records-actions">
+                    <button type="button" className="records-edit-btn" onClick={() => setViewRow(row)}>View</button>
+                    <button type="button" className="records-edit-btn" onClick={() => openEdit(row)}>Edit</button>
+                    <button type="button" className="records-edit-btn" onClick={() => printStaffProfile(row)}>Print</button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {viewRow && (
+        <div className="staff-modal-backdrop" onClick={() => setViewRow(null)}>
+          <div className="staff-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="staff-detail-title">
+            <h3 id="staff-detail-title">Staff details</h3>
+            <dl className="staff-detail-list">
+              <dt>Staff ID</dt><dd>{viewRow.staffNumber || "—"}</dd>
+              <dt>Full Name</dt><dd>{viewRow.fullName || "—"}</dd>
+              <dt>Email</dt><dd>{viewRow.email}</dd>
+              <dt>Role</dt><dd>{viewRow.role}</dd>
+              <dt>Job Title</dt><dd>{viewRow.jobTitle}</dd>
+              <dt>Department</dt><dd>{viewRow.departmentName}</dd>
+              <dt>Faculty</dt><dd>{viewRow.facultyName || "—"}</dd>
+              <dt>Status</dt><dd>{viewRow.status}</dd>
+              <dt>Additional Staff Information</dt>
+              <dd>{viewRow.employmentDetails || "—"}</dd>
+            </dl>
+            <div className="as-form-actions">
+              <button type="button" className="as-save-btn" onClick={() => openEdit(viewRow)}>Edit / Save</button>
+              <button type="button" className="as-cancel-btn" onClick={() => printStaffProfile(viewRow)}>Print</button>
+              <button type="button" className="as-cancel-btn" onClick={() => setViewRow(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );

@@ -185,6 +185,12 @@
   flex: 1;
 }
 
+.dash-contact-footer {
+  margin: 0 32px 20px;
+  font-size: 12px;
+  color: var(--text-light);
+}
+
 .dash-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

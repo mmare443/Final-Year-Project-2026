@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import { API_ORIGIN } from "./MockDataContext";
-import { apiFetch } from "../api";
+import { apiFetch, isNetworkFailure, API_UNREACHABLE, throwIfNotOk } from "../api";
 
 /**
  * STUDENTS CONTEXT — M2, wired to the real ASP.NET Core Web API.
@@ -29,16 +29,13 @@ export function StudentsProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await apiFetch(`${API_BASE}/students/me`);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      await throwIfNotOk(res, "GET /api/students/me");
       const data = await res.json();
       setMyProfile(data);
       setApiError(null);
       return data;
     } catch (err) {
-      setApiError(
-        "Couldn't reach the backend API. Make sure `dotnet run` is " +
-        "running on http://localhost:5000."
-      );
+      setApiError(isNetworkFailure(err) ? API_UNREACHABLE : (err.message || String(err)));
       return null;
     } finally {
       setIsLoading(false);
@@ -80,15 +77,12 @@ export function StudentsProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await apiFetch(`${API_BASE}/students`);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      await throwIfNotOk(res, "GET /api/students");
       const data = await res.json();
       setAllStudents(data);
       setApiError(null);
     } catch (err) {
-      setApiError(
-        "Couldn't reach the backend API. Make sure `dotnet run` is " +
-        "running on http://localhost:5000."
-      );
+      setApiError(isNetworkFailure(err) ? API_UNREACHABLE : (err.message || String(err)));
     } finally {
       setIsLoading(false);
     }

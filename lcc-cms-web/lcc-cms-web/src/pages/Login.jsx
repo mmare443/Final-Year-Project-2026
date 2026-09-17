@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMockAuth, ROLES } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
+import { CONTACT } from "../config/contactConfig";
+import CollegeContact from "../components/CollegeContact";
 import lccLogo from "../assets/lcc-logo.png";
 import "./Login.css";
 
@@ -41,7 +43,7 @@ export default function Login() {
         <div className="login-brand-block">
           <img
             src={lccLogo}
-            alt="Lutheran Church College"
+            alt={CONTACT.institution}
             className="login-hero-logo"
           />
           <p className="login-brand-mark">LCC-CMS</p>
@@ -82,6 +84,7 @@ export default function Login() {
         </form>
 
         <a href={PUBLIC_SITE_URL} className="back-link">← Return to LCC website</a>
+        <CollegeContact />
       </div>
     </div>
   );

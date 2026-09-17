@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
-import { API_ORIGIN, apiFetch } from "../api";
+import { API_ORIGIN, apiFetch, isNetworkFailure, API_UNREACHABLE, throwIfNotOk } from "../api";
 import { REGISTRAR_NAV } from "./registrarNav";
 import "./AcademicStructure.css";
 import "./StudentRecords.css";
@@ -39,9 +39,12 @@ export default function AccommodationWelfare() {
         apiFetch(`${API_ORIGIN}/api/staff`),
         apiFetch(`${API_ORIGIN}/api/users/simple`),
       ]);
-      if (![hRes, rRes, aRes, wRes, sRes, uRes].every((r) => r.ok)) {
-        throw new Error("API error");
-      }
+      await throwIfNotOk(hRes, "GET /api/hostels");
+      await throwIfNotOk(rRes, "GET /api/rooms");
+      await throwIfNotOk(aRes, "GET /api/accommodation");
+      await throwIfNotOk(wRes, "GET /api/welfare-cases");
+      await throwIfNotOk(sRes, "GET /api/staff");
+      await throwIfNotOk(uRes, "GET /api/users/simple");
       setHostels(await hRes.json());
       setRooms(await rRes.json());
       setAllocations(await aRes.json());
@@ -50,10 +53,8 @@ export default function AccommodationWelfare() {
       const users = await uRes.json();
       setStudents(users.filter((u) => String(u.role).toLowerCase() === "student"));
       setApiError(null);
-    } catch {
-      setApiError(
-        "Couldn't reach the backend API. Make sure `dotnet run` is running on http://localhost:5000."
-      );
+    } catch (err) {
+      setApiError(isNetworkFailure(err) ? API_UNREACHABLE : (err.message || String(err)));
     }
   }, []);
 

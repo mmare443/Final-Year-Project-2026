@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { API_ORIGIN, apiFetch } from "../api";
+import { API_ORIGIN, apiFetch, isNetworkFailure, API_UNREACHABLE, throwIfNotOk } from "../api";
 
 /**
  * ADMISSIONS CONTEXT — M1, wired to the real ASP.NET Core Web API.
@@ -55,15 +55,12 @@ export function MockDataProvider({ children }) {
     setIsLoading(true);
     try {
       const res = await apiFetch(`${API_BASE}/admissions`);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      await throwIfNotOk(res, "GET /api/admissions");
       const data = await res.json();
       setApplications(data);
       setApiError(null);
     } catch (err) {
-      setApiError(
-        "Couldn't reach the backend API. Make sure `dotnet run` is " +
-        "running (see LCC_CMS_Api's README) on http://localhost:5000."
-      );
+      setApiError(isNetworkFailure(err) ? API_UNREACHABLE : (err.message || String(err)));
     } finally {
       setIsLoading(false);
     }

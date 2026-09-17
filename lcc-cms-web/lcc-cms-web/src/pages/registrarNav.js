@@ -10,6 +10,6 @@ export const REGISTRAR_NAV = [
   { label: "Course Registrations", path: "/registrar/registrations" },
   { label: "Staff Management", path: "/registrar/staff" },
   { label: "Accommodation & Welfare", path: "/registrar/accommodation" },
-  "System Administration",
-  "Profile",
+  { label: "System Administration", path: "/registrar/admin" },
+  { label: "Profile", path: "/registrar/profile" },
 ];

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { API_ORIGIN } from "../api";
+import { CONTACT } from "../config/contactConfig";
+import CollegeContact from "../components/CollegeContact";
 import PageHeader from "../components/PageHeader";
 import "./Login.css";
 
@@ -45,10 +47,11 @@ export default function Activate() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <PageHeader brand="LCC-CMS" title="Activate Account" subtitle="College Portal" />
+        <PageHeader brand="LCC-CMS" title="Activate Account" subtitle={CONTACT.institution} />
         <p className="login-intro">
           Set a password using the activation token sent after your admission was approved.
         </p>
+        <CollegeContact />
 
         {success ? (
           <p className="login-intro">
