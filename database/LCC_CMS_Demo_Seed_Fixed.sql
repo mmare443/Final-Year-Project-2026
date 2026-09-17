@@ -258,8 +258,8 @@ BEGIN TRANSACTION;
     FROM @stu s
     WHERE NOT EXISTS (SELECT 1 FROM dbo.users u WHERE u.email = s.email);
 
-    INSERT INTO dbo.students (student_id, student_number, programme_id, enrolment_status, emergency_contact)
-    SELECT u.user_id, s.student_number, s.programme_id, s.enrolment_status, N'Next of kin — 675 7000 ' + RIGHT(s.student_number, 4)
+    INSERT INTO dbo.students (student_id, student_number, full_name, programme_id, enrolment_status, emergency_contact)
+    SELECT u.user_id, s.student_number, s.applicant_name, s.programme_id, s.enrolment_status, N'Next of kin — 675 7000 ' + RIGHT(s.student_number, 4)
     FROM @stu s
     JOIN dbo.users u ON u.email = s.email
     WHERE NOT EXISTS (SELECT 1 FROM dbo.students st WHERE st.student_id = u.user_id);

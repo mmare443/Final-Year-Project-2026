@@ -89,3 +89,70 @@
 .btn-reject {
   background: #C0392B;
 }
+
+.staff-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 35, 58, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: 24px;
+}
+
+.staff-modal {
+  background: var(--white);
+  border-radius: 12px;
+  padding: 22px 24px;
+  max-width: 560px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(13, 35, 58, 0.18);
+}
+
+.staff-modal h3 {
+  margin: 0 0 14px;
+}
+
+.staff-detail-list {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px 14px;
+  margin: 0 0 8px;
+  font-size: 13.5px;
+}
+
+.staff-detail-list dt {
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.staff-detail-list dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.as-form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.as-save-btn {
+  background: var(--primary);
+  color: var(--white);
+  border: 0;
+  padding: 9px 18px;
+  border-radius: 7px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.as-cancel-btn {
+  background: none;
+  border: 1px solid #E2E8F0;
+  color: var(--text-light);
+  padding: 9px 18px;
+  border-radius: 7px;
+  font-size: 13px;
+}

@@ -237,6 +237,11 @@ public class StudentsController : ControllerBase
         }
         student.EmergencyContact = combined;
 
+        var postal = request.PostalAddress?.Trim() ?? "";
+        student.PostalAddress = postal.Length == 0
+            ? null
+            : postal.Length > 500 ? postal[..500] : postal;
+
         if (student.Admission is not null)
         {
             var applicantPhone = request.Phone?.Trim() ?? "";
@@ -350,8 +355,10 @@ public class StudentsController : ControllerBase
 
         return new StudentProfile
         {
+            StudentId = student.StudentId,
+            StudentNumber = student.StudentNumber,
             Id = student.StudentNumber,
-            FullName = student.Admission?.ApplicantName ?? "",
+            FullName = ResolveFullName(student),
             Email = student.StudentNavigation?.Email ?? "",
             Phone = student.Admission?.ApplicantPhone ?? "",
             Programme = student.Programme?.ProgrammeName ?? "",
@@ -361,12 +368,23 @@ public class StudentsController : ControllerBase
             Province = "",
             District = "",
             Village = "",
-            PostalAddress = "",
+            PostalAddress = student.PostalAddress ?? "",
             EmergencyContactName = emergencyName,
             EmergencyContactPhone = emergencyPhone,
             PhotoPath = photo?.FileUrl,
             PhotoFileName = photo is null ? null : Path.GetFileName(photo.FileUrl),
         };
+    }
+
+    private static string ResolveFullName(Student student)
+    {
+        if (!string.IsNullOrWhiteSpace(student.FullName)) return student.FullName.Trim();
+        if (!string.IsNullOrWhiteSpace(student.Admission?.ApplicantName))
+        {
+            return student.Admission.ApplicantName.Trim();
+        }
+
+        return student.StudentNumber;
     }
 
     private class SavedPhoto
@@ -386,7 +404,9 @@ internal static class StudentDirectory
         var name = await dbContext.Students
             .AsNoTracking()
             .Where(s => s.StudentNumber == studentNumber)
-            .Select(s => s.Admission != null ? s.Admission.ApplicantName : s.StudentNumber)
+            .Select(s => !string.IsNullOrWhiteSpace(s.FullName)
+                ? s.FullName
+                : (s.Admission != null ? s.Admission.ApplicantName : s.StudentNumber))
             .FirstOrDefaultAsync();
 
         return string.IsNullOrWhiteSpace(name) ? studentNumber : name;
@@ -395,6 +415,8 @@ internal static class StudentDirectory
 
 public class StudentProfile
 {
+    public int StudentId { get; set; }
+    public string StudentNumber { get; set; } = "";
     public string Id { get; set; } = "";
     public string FullName { get; set; } = "";
     public string Email { get; set; } = "";

@@ -202,8 +202,8 @@ BEGIN TRANSACTION;
 
     /* Student subtype (PK = users.user_id) */
     IF NOT EXISTS (SELECT 1 FROM dbo.students WHERE student_id = @student_user_id)
-        INSERT INTO dbo.students (student_id, student_number, programme_id, enrolment_status)
-        VALUES (@student_user_id, N'LCC26001', @programme_id, N'Enrolled');
+        INSERT INTO dbo.students (student_id, student_number, full_name, programme_id, enrolment_status)
+        VALUES (@student_user_id, N'LCC26001', N'Kila Student', @programme_id, N'Enrolled');
 
     /* Staff subtypes (PK = users.user_id) */
     IF NOT EXISTS (SELECT 1 FROM dbo.staff WHERE staff_id = @lecturer_user_id)

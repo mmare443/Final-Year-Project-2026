@@ -936,6 +936,12 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.StudentNumber)
                 .HasMaxLength(20)
                 .HasColumnName("student_number");
+            entity.Property(e => e.FullName)
+                .HasMaxLength(150)
+                .HasColumnName("full_name");
+            entity.Property(e => e.PostalAddress)
+                .HasMaxLength(500)
+                .HasColumnName("postal_address");
 
             entity.HasOne(d => d.Programme).WithMany(p => p.Students)
                 .HasForeignKey(d => d.ProgrammeId)

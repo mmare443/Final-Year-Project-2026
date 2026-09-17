@@ -335,6 +335,7 @@ public class AdmissionsController : ControllerBase
             {
                 StudentId = user.UserId,
                 StudentNumber = studentNumber,
+                FullName = admission.ApplicantName.Trim(),
                 ProgrammeId = admission.ProgrammeId,
                 EnrolmentStatus = "Enrolled",
             };

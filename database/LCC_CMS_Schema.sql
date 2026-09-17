@@ -102,10 +102,12 @@ CREATE INDEX IX_rooms_hostel ON rooms(hostel_id);
 CREATE TABLE students (
     student_id          INT             PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
     student_number      NVARCHAR(20)    NOT NULL UNIQUE,
+    full_name           NVARCHAR(150)   NOT NULL,
     programme_id         INT             NOT NULL REFERENCES programmes(programme_id),
     enrolment_status    NVARCHAR(20)    NOT NULL DEFAULT 'Enrolled'
         CHECK (enrolment_status IN ('Applied','Enrolled','Graduated','Withdrawn')),
-    emergency_contact   NVARCHAR(255)   NULL
+    emergency_contact   NVARCHAR(255)   NULL,
+    postal_address      NVARCHAR(500)   NULL
 );
 CREATE INDEX IX_students_programme ON students(programme_id);
 

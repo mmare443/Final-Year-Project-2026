@@ -9,11 +9,15 @@ public partial class Student
 
     public string StudentNumber { get; set; } = null!;
 
+    public string FullName { get; set; } = null!;
+
     public int ProgrammeId { get; set; }
 
     public string EnrolmentStatus { get; set; } = null!;
 
     public string? EmergencyContact { get; set; }
+
+    public string? PostalAddress { get; set; }
 
     public virtual AccommodationRecord? AccommodationRecord { get; set; }
 

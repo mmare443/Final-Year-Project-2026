@@ -10,6 +10,7 @@ export default function StudentRecords() {
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
 
   useEffect(() => {
     fetchAllStudents();
@@ -24,6 +25,7 @@ export default function StudentRecords() {
       postalAddress: student.postalAddress,
     });
     setSaveError(null);
+    setViewRow(null);
   };
 
   const cancelEdit = () => {
@@ -70,20 +72,25 @@ export default function StudentRecords() {
         <table className="records-table">
           <thead>
             <tr>
-              <th>Student</th>
-              <th>ID</th>
+              <th>Student Name</th>
+              <th>Student ID</th>
               <th>Programme</th>
               <th>Phone</th>
               <th>Emergency Contact</th>
               <th>Postal Address</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
+            {allStudents.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{ color: "var(--text-light)" }}>No student records.</td>
+              </tr>
+            )}
             {allStudents.map((s) => (
-              <tr key={s.id}>
-                <td>{s.fullName}</td>
-                <td>{s.id}</td>
+              <tr key={s.studentId ?? s.id}>
+                <td>{s.fullName || "—"}</td>
+                <td>{s.studentNumber || s.id}</td>
                 <td>{s.programme}</td>
                 {editingId === s.id ? (
                   <>
@@ -123,13 +130,18 @@ export default function StudentRecords() {
                   </>
                 ) : (
                   <>
-                    <td>{s.phone}</td>
+                    <td>{s.phone || "—"}</td>
                     <td>{s.emergencyContactName || "—"}{s.emergencyContactPhone ? ` (${s.emergencyContactPhone})` : ""}</td>
                     <td>{s.postalAddress || "—"}</td>
                     <td>
-                      <button className="records-edit-btn" onClick={() => startEdit(s)}>
-                        Correct
-                      </button>
+                      <div className="records-actions">
+                        <button type="button" className="records-edit-btn" onClick={() => setViewRow(s)}>
+                          View
+                        </button>
+                        <button type="button" className="records-edit-btn" onClick={() => startEdit(s)}>
+                          Correct
+                        </button>
+                      </div>
                     </td>
                   </>
                 )}
@@ -137,6 +149,31 @@ export default function StudentRecords() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {viewRow && (
+        <div className="staff-modal-backdrop" onClick={() => setViewRow(null)}>
+          <div className="staff-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="student-detail-title">
+            <h3 id="student-detail-title">Student details</h3>
+            <dl className="staff-detail-list">
+              <dt>Student ID</dt><dd>{viewRow.studentNumber || viewRow.id}</dd>
+              <dt>Full Name</dt><dd>{viewRow.fullName || "—"}</dd>
+              <dt>Email</dt><dd>{viewRow.email || "—"}</dd>
+              <dt>Programme</dt><dd>{viewRow.programme || "—"}</dd>
+              <dt>Phone</dt><dd>{viewRow.phone || "—"}</dd>
+              <dt>Emergency contact</dt>
+              <dd>
+                {viewRow.emergencyContactName || "—"}
+                {viewRow.emergencyContactPhone ? ` (${viewRow.emergencyContactPhone})` : ""}
+              </dd>
+              <dt>Postal address</dt><dd>{viewRow.postalAddress || "—"}</dd>
+            </dl>
+            <div className="as-form-actions">
+              <button type="button" className="as-save-btn" onClick={() => startEdit(viewRow)}>Correct</button>
+              <button type="button" className="as-cancel-btn" onClick={() => setViewRow(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );
