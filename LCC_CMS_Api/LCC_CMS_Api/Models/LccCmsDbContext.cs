@@ -55,6 +55,8 @@ public partial class LccCmsDbContext : DbContext
 
     public virtual DbSet<Message> Messages { get; set; }
 
+    public virtual DbSet<NewsArticle> NewsArticles { get; set; }
+
     public virtual DbSet<Notice> Notices { get; set; }
 
     public virtual DbSet<Programme> Programmes { get; set; }
@@ -712,6 +714,58 @@ public partial class LccCmsDbContext : DbContext
                 .HasForeignKey(d => d.AuthorId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__notices__author___44CA3770");
+        });
+
+        modelBuilder.Entity<NewsArticle>(entity =>
+        {
+            entity.HasKey(e => e.NewsId).HasName("PK_news_articles");
+
+            entity.ToTable("news_articles");
+
+            entity.HasIndex(e => new { e.IsPublished, e.PublishedAt }, "IX_news_articles_published");
+
+            entity.Property(e => e.NewsId).HasColumnName("news_id");
+            entity.Property(e => e.Title)
+                .HasMaxLength(200)
+                .HasColumnName("title");
+            entity.Property(e => e.Summary)
+                .HasMaxLength(500)
+                .HasColumnName("summary");
+            entity.Property(e => e.Content).HasColumnName("content");
+            entity.Property(e => e.ImageUrl)
+                .HasMaxLength(500)
+                .HasColumnName("image_url");
+            entity.Property(e => e.ExternalUrl)
+                .HasMaxLength(1000)
+                .HasColumnName("external_url");
+            entity.Property(e => e.SourceName)
+                .HasMaxLength(200)
+                .HasColumnName("source_name");
+            entity.Property(e => e.SourceSubtitle)
+                .HasMaxLength(300)
+                .HasColumnName("source_subtitle");
+            entity.Property(e => e.SourceLogoUrl)
+                .HasMaxLength(500)
+                .HasColumnName("source_logo_url");
+            entity.Property(e => e.SourceTitle)
+                .HasMaxLength(500)
+                .HasColumnName("source_title");
+            entity.Property(e => e.ThumbnailUrl)
+                .HasMaxLength(1000)
+                .HasColumnName("thumbnail_url");
+            entity.Property(e => e.IsExternal)
+                .HasDefaultValue(false)
+                .HasColumnName("is_external");
+            entity.Property(e => e.PublishedAt).HasColumnName("published_at");
+            entity.Property(e => e.IsPublished)
+                .HasDefaultValue(false)
+                .HasColumnName("is_published");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+
+            entity.HasOne(d => d.CreatedByUser).WithMany(p => p.NewsArticles)
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_news_articles_created_by");
         });
 
         modelBuilder.Entity<Programme>(entity =>

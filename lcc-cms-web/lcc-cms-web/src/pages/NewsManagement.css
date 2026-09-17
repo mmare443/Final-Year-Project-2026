@@ -1,0 +1,74 @@
+.news-form-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--secondary);
+}
+
+.news-form-fields {
+  grid-template-columns: 1fr 1fr;
+}
+
+.news-span-2 {
+  grid-column: 1 / -1;
+}
+
+.as-form textarea {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 400;
+  padding: 8px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  color: var(--text);
+  resize: vertical;
+}
+
+.news-check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.news-check input {
+  width: auto;
+}
+
+.news-type {
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+
+.news-type legend {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--secondary);
+  padding: 0 6px;
+}
+
+.news-type label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-right: 18px;
+  font-weight: 600;
+}
+
+.news-thumb-preview img {
+  max-width: 280px;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+}
+
+.news-draft-badge {
+  background: #F4F6F8;
+  color: #5A6B80;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+}

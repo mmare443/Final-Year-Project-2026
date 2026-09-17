@@ -6,26 +6,22 @@ function escapeHtml(value) {
         .replace(/"/g, "&quot;");
 }
 
+function fillText(selector, value) {
+    if (value == null || value === "") return;
+    document.querySelectorAll(selector).forEach((el) => {
+        el.textContent = value;
+    });
+}
+
 function fillPublicContact() {
     const c = window.LCC_CONTACT;
     if (!c) return;
 
-    document.querySelectorAll("[data-contact-institution]").forEach((el) => {
-        el.textContent = c.institution;
-    });
-    document.querySelectorAll("[data-contact-postal]").forEach((el) => {
-        el.textContent = c.postalOneLine;
-    });
-
-    document.querySelectorAll("[data-contact-footer]").forEach((el) => {
-        el.innerHTML = `
-                <h4>Contact</h4>
-                <p>Phone: ${escapeHtml(c.phone)}</p>
-                <p>WhatsApp: ${escapeHtml(c.whatsApp)}</p>
-                <p>Fax: ${escapeHtml(c.fax)}</p>
-                <p>Email: <a href="mailto:${escapeHtml(c.primaryEmail)}">${escapeHtml(c.primaryEmail)}</a></p>
-                <p>Address: ${escapeHtml(c.postalOneLine)}</p>`;
-    });
+    fillText("[data-contact-institution]", c.institution);
+    fillText("[data-contact-brand-location]", c.postalBullet || c.postalOneLine);
+    fillText("[data-contact-phone]", c.phone);
+    fillText("[data-contact-email]", c.primaryEmail);
+    fillText("[data-contact-address]", c.postalOneLine);
 
     document.querySelectorAll("[data-contact-cards]").forEach((el) => {
         el.innerHTML = `

@@ -47,7 +47,7 @@ export async function readApiError(res) {
     return "You do not have permission for this request (403).";
   }
   if (res.status === 404) {
-    return "The requested record was not found (404).";
+    return "The requested API endpoint or record was not found (404).";
   }
   if (res.status >= 500) {
     return text || `The server failed this request (${res.status}).`;

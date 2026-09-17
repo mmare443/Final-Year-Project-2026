@@ -6,6 +6,8 @@ window.LCC_CONTACT = {
     postalLine4: "Papua New Guinea",
     postalOneLine:
         "P.O. Box 72, Mt. Hagen, Western Highlands Province, Papua New Guinea",
+    postalBullet:
+        "P.O. Box 72 • Mt. Hagen • Western Highlands Province • Papua New Guinea",
     phone: "(675) 74017162",
     phoneHref: "tel:+67574017162",
     whatsApp: "74017162",

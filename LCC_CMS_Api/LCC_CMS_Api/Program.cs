@@ -164,6 +164,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ManagementOnly", p => p.RequireRole(
         LCC_CMS_Api.Services.RoleNames.ManagementPrincipal,
         LCC_CMS_Api.Services.RoleNames.ManagementPrincipalSql));
+    options.AddPolicy("PrincipalAdminOnly", p => p.RequireRole(
+        LCC_CMS_Api.Services.RoleNames.ManagementPrincipal,
+        LCC_CMS_Api.Services.RoleNames.ManagementPrincipalSql));
 });
 
 // ---------------------------------------------------------------
@@ -177,6 +180,13 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LCC_CMS_Api.Services.ICurrentUser, LCC_CMS_Api.Services.CurrentUserService>();
 builder.Services.AddScoped<LCC_CMS_Api.Services.IFileStorage, LCC_CMS_Api.Services.LocalFileStorage>();
 builder.Services.AddScoped<LCC_CMS_Api.Services.CourseResultService>();
+builder.Services.AddHttpClient<LCC_CMS_Api.Services.OpenGraphMetadataClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(8);
+    client.DefaultRequestHeaders.TryAddWithoutValidation(
+        "User-Agent",
+        "Mozilla/5.0 (compatible; LCC-CMS-NewsPreview/1.0)");
+});
 builder.Services.AddSingleton<LCC_CMS_Api.Services.IEntraUserProvisioner, LCC_CMS_Api.Services.GraphEntraUserProvisioner>();
 
 // ---------------------------------------------------------------
@@ -209,6 +219,7 @@ if (localJwtConfigured)
 {
     app.Logger.LogInformation("Local JWT authentication is enabled.");
     LCC_CMS_Api.Services.LabPasswordSeeder.SeedAsync(app.Services, app.Logger).GetAwaiter().GetResult();
+    LCC_CMS_Api.Services.NewsMetadataBackfill.RunAsync(app.Services, app.Logger).GetAwaiter().GetResult();
 }
 else if (!azureAdConfigured)
 {

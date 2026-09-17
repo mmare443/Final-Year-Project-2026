@@ -31,6 +31,8 @@ public partial class User
 
     public virtual ICollection<Message> MessageSenders { get; set; } = new List<Message>();
 
+    public virtual ICollection<NewsArticle> NewsArticles { get; set; } = new List<NewsArticle>();
+
     public virtual Staff? Staff { get; set; }
 
     public virtual Student? Student { get; set; }

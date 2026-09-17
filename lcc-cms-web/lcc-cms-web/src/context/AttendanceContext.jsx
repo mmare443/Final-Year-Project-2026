@@ -1,10 +1,15 @@
 import { createContext, useContext, useState, useCallback } from "react";
-import { API_ORIGIN } from "./MockDataContext";
-import { apiFetch } from "../api";
+import {
+  API_ORIGIN,
+  API_UNREACHABLE,
+  apiFetch,
+  isNetworkFailure,
+  throwIfNotOk,
+} from "../api";
 
 /**
  * ATTENDANCE CONTEXT — M5.
- * Same local-first / mock-auth pattern as the rest of the project.
+ * Uses the shared apiFetch client (JWT + API_ORIGIN) like other modules.
  */
 
 const API_BASE = `${API_ORIGIN}/api/attendance`;
@@ -13,6 +18,26 @@ const AttendanceContext = createContext(null);
 
 export const ATTENDANCE_STATUSES = ["Present", "Absent", "Late", "Excused"];
 export const ATTENDANCE_THRESHOLD = 75;
+
+function describeAttendanceError(err, fallbackLabel) {
+  if (err?.name === "AbortError" || /timeout|timed out/i.test(String(err?.message || ""))) {
+    return "The attendance request timed out. Try again.";
+  }
+  if (isNetworkFailure(err)) {
+    return "Attendance API is unavailable. Confirm the backend is running.";
+  }
+  const message = err?.message || String(err);
+  if (/\(404\)/.test(message)) {
+    return `Attendance endpoint missing (404). ${message}`;
+  }
+  if (/\(401\)/.test(message) || /unauthorized|sign in required/i.test(message)) {
+    return message.includes("401") ? message : `Unauthorized (401). ${message}`;
+  }
+  if (/\(403\)/.test(message) || /do not have permission/i.test(message)) {
+    return message;
+  }
+  return message || fallbackLabel || API_UNREACHABLE;
+}
 
 export function AttendanceProvider({ children }) {
   const [sessions, setSessions] = useState([]);
@@ -23,10 +48,7 @@ export function AttendanceProvider({ children }) {
   const [apiError, setApiError] = useState(null);
 
   const handleError = (err) => {
-    setApiError(
-      "Couldn't reach the backend API. Make sure `dotnet run` is " +
-        "running on http://localhost:5000."
-    );
+    setApiError(describeAttendanceError(err));
   };
 
   const fetchSessions = useCallback(async (allocationId) => {
@@ -36,7 +58,7 @@ export function AttendanceProvider({ children }) {
         ? `${API_BASE}/sessions?allocationId=${allocationId}`
         : `${API_BASE}/sessions`;
       const res = await apiFetch(url);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      await throwIfNotOk(res, "GET /api/attendance/sessions");
       const data = await res.json();
       setSessions(data);
       setApiError(null);
@@ -51,7 +73,7 @@ export function AttendanceProvider({ children }) {
 
   const fetchSession = useCallback(async (id) => {
     const res = await apiFetch(`${API_BASE}/sessions/${id}`);
-    if (!res.ok) throw new Error(`API returned ${res.status}`);
+    await throwIfNotOk(res, "GET /api/attendance/sessions");
     const data = await res.json();
     setSessionDetail(data);
     return data;
@@ -63,10 +85,7 @@ export function AttendanceProvider({ children }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ allocationId, sessionDate }),
     });
-    if (!res.ok) {
-      const message = await res.text().catch(() => null);
-      throw new Error(message || `API returned ${res.status}`);
-    }
+    await throwIfNotOk(res, "POST /api/attendance/sessions");
     const created = await res.json();
     setSessions((prev) => [created, ...prev]);
     return created;
@@ -78,10 +97,7 @@ export function AttendanceProvider({ children }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ marks }),
     });
-    if (!res.ok) {
-      const message = await res.text().catch(() => null);
-      throw new Error(message || `API returned ${res.status}`);
-    }
+    await throwIfNotOk(res, "PUT /api/attendance/sessions/marks");
     const detail = await res.json();
     setSessionDetail(detail);
     return detail;
@@ -94,7 +110,7 @@ export function AttendanceProvider({ children }) {
       if (allocationId) params.set("allocationId", allocationId);
       const qs = params.toString();
       const res = await apiFetch(`${API_BASE}/rates${qs ? `?${qs}` : ""}`);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      await throwIfNotOk(res, "GET /api/attendance/rates");
       const data = await res.json();
       setRates(data);
       setApiError(null);
@@ -111,7 +127,7 @@ export function AttendanceProvider({ children }) {
         ? `${API_BASE}/alerts?studentId=${encodeURIComponent(studentId)}`
         : `${API_BASE}/alerts`;
       const res = await apiFetch(url);
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      await throwIfNotOk(res, "GET /api/attendance/alerts");
       const data = await res.json();
       setAlerts(data);
       setApiError(null);
@@ -127,10 +143,7 @@ export function AttendanceProvider({ children }) {
     if (allocationId) params.set("allocationId", allocationId);
     if (studentId) params.set("studentId", studentId);
     const res = await apiFetch(`${API_BASE}/reports?${params.toString()}`);
-    if (!res.ok) {
-      const message = await res.text().catch(() => null);
-      throw new Error(message || `API returned ${res.status}`);
-    }
+    await throwIfNotOk(res, "GET /api/attendance/reports");
     return res.json();
   }, []);
 

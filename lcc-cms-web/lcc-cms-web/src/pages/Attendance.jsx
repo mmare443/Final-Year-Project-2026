@@ -403,22 +403,28 @@ function HoDAttendance() {
 }
 
 function StudentAttendance() {
-  const { myProfile, fetchMyProfile } = useStudents();
+  const { myProfile, fetchMyProfile, apiError: profileError } = useStudents();
   const { rates, alerts, apiError, fetchRates, fetchAlerts } = useAttendance();
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      setLoadError(null);
       const profile = myProfile || await fetchMyProfile();
-      const id = profile?.id;
-      if (!id) return;
-      try {
-        await fetchRates({ studentId: id });
-        await fetchAlerts(id);
-      } catch {
-        /* apiError is set by fetchRates/fetchAlerts callers that don't swallow —
-           fetchRates throws; show apiError from context after a local catch */
+      const id = profile?.id || profile?.studentNumber;
+      if (!id) {
+        if (!cancelled) {
+          setLoadError("Could not load your student profile, so attendance cannot be requested.");
+        }
+        return;
       }
+      await fetchRates({ studentId: id });
+      await fetchAlerts(id);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [myProfile, fetchMyProfile, fetchRates, fetchAlerts]);
 
   const overall = useMemo(() => {
@@ -431,7 +437,9 @@ function StudentAttendance() {
 
   return (
     <>
-      {apiError && <p className="att-error">{apiError}</p>}
+      {(apiError || profileError || loadError) && (
+        <p className="att-error">{apiError || profileError || loadError}</p>
+      )}
       <div className="dash-card-grid" style={{ marginBottom: 20 }}>
         <div className="dash-card">
           <h3>Overall attendance</h3>

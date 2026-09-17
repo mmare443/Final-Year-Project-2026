@@ -32,6 +32,7 @@ import CourseRegistrations from "./pages/CourseRegistrations";
 import StaffManagement from "./pages/StaffManagement";
 import AccommodationWelfare from "./pages/AccommodationWelfare";
 import RegistrarSystemAdmin from "./pages/RegistrarSystemAdmin";
+import NewsManagement from "./pages/NewsManagement";
 import RegistrarProfile from "./pages/RegistrarProfile";
 import ManagementPrincipalDashboard from "./pages/ManagementPrincipalDashboard";
 import EnrolmentAnalytics from "./pages/EnrolmentAnalytics";
@@ -303,6 +304,14 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
                         <Announcements />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/management/news"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.MANAGEMENT_PRINCIPAL}>
+                        <NewsManagement />
                       </ProtectedRoute>
                     }
                   />

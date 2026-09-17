@@ -23,7 +23,7 @@ namespace LCC_CMS_Api.Controllers;
 /// attendance_sessions C/R, attendances C/R/U — no session delete.
 ///
 /// [Authorize(Policy = "LecturerOnly")] on write endpoints once
-/// AuthEnabled=true. HoD/Student reads are role-scoped in the SPA today.
+/// AuthEnabled=true. Reads use ResolveAttendanceScopeAsync (student, lecturer, HoD).
 /// </summary>
 [ApiController]
 [Route("api/attendance")]
@@ -257,16 +257,25 @@ public class AttendanceController : ControllerBase
         return Ok(await LoadRatesAsync(studentId, allocationId, scope.DepartmentId, cancellationToken));
     }
 
-    [Authorize(Policy = "HoDOnly")]
     [HttpGet("alerts")]
     public async Task<ActionResult<IEnumerable<AttendanceAlertRecord>>> GetAlerts(
         [FromQuery] string? studentId,
         CancellationToken cancellationToken)
     {
-        var departmentId = await ResolveHoDDepartmentIdAsync(cancellationToken);
-        if (departmentId is null) return Unauthorized();
+        var scope = await ResolveAttendanceScopeAsync(cancellationToken);
+        if (scope.Error is not null) return scope.Error;
 
-        var rates = await LoadRatesAsync(studentId, null, departmentId, cancellationToken);
+        if (scope.StudentId is not null)
+        {
+            studentId = scope.StudentNumber;
+        }
+
+        var rates = await LoadRatesAsync(studentId, null, scope.DepartmentId, cancellationToken);
+        if (scope.AllocationIds is not null)
+        {
+            rates = rates.Where(r => scope.AllocationIds.Contains(r.AllocationId)).ToList();
+        }
+
         var alerts = rates
             .Where(r => r.BelowThreshold)
             .Select(ToAlert)
@@ -339,9 +348,11 @@ public class AttendanceController : ControllerBase
             .Select(r => new AttendanceRosterStudent
             {
                 StudentId = r.Student.StudentNumber,
-                StudentName = r.Student.Admission != null
+                StudentName = !string.IsNullOrWhiteSpace(r.Student.FullName)
+                    ? r.Student.FullName
+                    : (r.Student.Admission != null
                     ? r.Student.Admission.ApplicantName
-                    : r.Student.StudentNumber,
+                    : r.Student.StudentNumber),
             })
             .ToListAsync();
 
@@ -370,7 +381,9 @@ public class AttendanceController : ControllerBase
             Id = mark.AttendanceId,
             SessionId = mark.SessionId,
             StudentId = mark.Student.StudentNumber,
-            StudentName = mark.Student.Admission?.ApplicantName ?? mark.Student.StudentNumber,
+            StudentName = !string.IsNullOrWhiteSpace(mark.Student.FullName)
+                ? mark.Student.FullName
+                : mark.Student.Admission?.ApplicantName ?? mark.Student.StudentNumber,
             Status = mark.Status,
         };
     }
@@ -422,9 +435,11 @@ public class AttendanceController : ControllerBase
                     : null,
                 LecturerTitle = r.Allocation.Staff.JobTitle,
                 StudentNumber = r.Student.StudentNumber,
-                StudentName = r.Student.Admission != null
+                StudentName = !string.IsNullOrWhiteSpace(r.Student.FullName)
+                    ? r.Student.FullName
+                    : (r.Student.Admission != null
                     ? r.Student.Admission.ApplicantName
-                    : r.Student.StudentNumber,
+                    : r.Student.StudentNumber),
                 Marked = _dbContext.Attendances.Count(a =>
                     a.StudentId == r.StudentId && a.Session.AllocationId == r.AllocationId),
                 Attended = _dbContext.Attendances.Count(a =>

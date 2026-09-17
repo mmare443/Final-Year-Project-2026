@@ -19,7 +19,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=brand-2">
+    <link rel="stylesheet" href="css/style.css?v=news-8">
     <link rel="stylesheet" href="css/header.css?v=brand-2">
     <link rel="stylesheet" href="css/hero.css">
 
@@ -297,21 +297,7 @@
                     </h2>
                 </div>
 
-                <div class="card-grid news-grid">
-
-                    <article class="info-card">
-                        <span class="card-meta">Announcement</span>
-                        <h3>College News and Updates</h3>
-                        <p>
-                            Important announcements and college updates
-                            will appear here.
-                        </p>
-                        <a href="html/news.html">
-                            Read news
-                        </a>
-                    </article>
-
-                </div>
+                <div id="home-news-root" class="card-grid news-grid"></div>
 
                 <div class="section-cta">
                     <a href="html/news.html"
@@ -362,8 +348,12 @@
             <div class="footer-brand">
                 <img src="images/logo/lcc-logo.png"
                      alt="Lutheran Church College Logo">
-                <h3 data-contact-institution></h3>
-                <p data-contact-postal></p>
+
+                <h3 data-contact-institution>Lutheran Church College Banz</h3>
+
+                <p data-contact-brand-location>
+                    P.O. Box 72 • Mt. Hagen • Western Highlands Province • Papua New Guinea
+                </p>
             </div>
 
             <div class="footer-links">
@@ -375,7 +365,11 @@
                 <a href="html/contact.html">Contact</a>
             </div>
 
-            <div class="footer-contact" data-contact-footer>
+            <div class="footer-contact">
+                <h4>Contact</h4>
+                <p>Phone: <span data-contact-phone>(675) 74017162</span></p>
+                <p>Email: <span data-contact-email>luthcol.banz@gmail.com</span></p>
+                <p>Address: <span data-contact-address>P.O. Box 72, Mt. Hagen, Western Highlands Province, Papua New Guinea</span></p>
             </div>
 
         </div>
@@ -394,6 +388,7 @@
     <script src="js/contactConfig.js"></script>
     <script src="js/slider.js"></script>
     <script src="js/main.js"></script>
+    <script src="js/news.js?v=news-8"></script>
 
 </body>
 </html>
