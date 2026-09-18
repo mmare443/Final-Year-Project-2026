@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { useMockAuth, ROLES } from "../context/MockAuthContext";
 import { useAcademicStructure } from "../context/AcademicStructureContext";
@@ -36,7 +37,15 @@ function LecturerLearning() {
     deleteAssignment, gradeSubmission,
   } = useLearning();
 
-  const [tab, setTab] = useState("materials");
+  const { pathname } = useLocation();
+  const [tab, setTab] = useState(() =>
+    pathname.endsWith("/grading") ? "grading" : pathname.endsWith("/assignments") ? "assignments" : "materials"
+  );
+
+  useEffect(() => {
+    if (pathname.endsWith("/grading")) setTab("grading");
+    else if (pathname.endsWith("/assignments")) setTab("assignments");
+  }, [pathname]);
   const [allocationId, setAllocationId] = useState("");
   const [formError, setFormError] = useState(null);
   const [materialTitle, setMaterialTitle] = useState("");

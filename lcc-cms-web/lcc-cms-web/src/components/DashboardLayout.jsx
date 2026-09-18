@@ -1,8 +1,9 @@
 import { useRef } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useMockAuth, ROLE_LABELS } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
 import { CONTACT } from "../config/contactConfig";
+import { isNavItemActive, resolveActiveNavPath } from "../nav/isNavActive";
 import lccLogo from "../assets/lcc-logo.png";
 import PageHeader from "./PageHeader";
 import "./DashboardLayout.css";
@@ -16,6 +17,8 @@ import "./DashboardLayout.css";
  */
 export default function DashboardLayout({ title, subtitle, navItems = [], children }) {
   const { role, displayName, avatarUrl, setAvatar, signOut } = useMockAuth();
+  const { pathname } = useLocation();
+  const activePath = resolveActiveNavPath(navItems, pathname);
   const avatarInputRef = useRef(null);
 
   const handleSignOut = () => {
@@ -52,14 +55,14 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
               );
             }
 
+            const isActive = isNavItemActive(path, activePath);
             return (
               <NavLink
-                key={label}
+                key={`${label}:${path}`}
                 to={path}
                 end
-                className={({ isActive }) =>
-                  `dash-nav-item${isActive ? " dash-nav-item-active" : ""}`
-                }
+                className={`dash-nav-item${isActive ? " dash-nav-item-active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
               >
                 {label}
               </NavLink>

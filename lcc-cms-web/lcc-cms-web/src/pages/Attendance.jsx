@@ -16,7 +16,7 @@ const LECTURER_NAV = [
   { label: "My Classes", path: "/lecturer/classes" },
   { label: "Attendance", path: "/lecturer/attendance" },
   { label: "Assignments", path: "/lecturer/assignments" },
-  { label: "Grading", path: "/lecturer/assignments" },
+  { label: "Grading", path: "/lecturer/grading" },
   { label: "Profile", path: "/lecturer/profile" },
 ];
 

@@ -1,5 +1,4 @@
 import DashboardLayout from "../components/DashboardLayout";
-import AdmissionsQueue from "../components/AdmissionsQueue";
 import { useMockData } from "../context/MockDataContext";
 import { useMockAuth, JOB_TITLES } from "../context/MockAuthContext";
 import { REGISTRAR_NAV } from "./registrarNav";
@@ -23,7 +22,7 @@ const NAV_BY_TITLE = {
   ],
   [JOB_TITLES.ADMIN_OFFICER]: [
     { label: "Overview", path: "/registrar" },
-    { label: "Admissions", path: "/registrar" },
+    { label: "Admissions", path: "/registrar/admissions" },
     { label: "Student Records", path: "/registrar/students" },
     { label: "Staff Management", path: "/registrar/staff" },
     { label: "System Administration", path: "/registrar/admin" },
@@ -78,15 +77,10 @@ export default function RegistrarAdminDashboard() {
           </div>
 
           <h2 style={{ margin: "28px 0 14px", fontSize: 16, color: "var(--secondary)" }}>
-            M1 — Admissions Queue
+            Overview
           </h2>
-          <AdmissionsQueue />
-
-          <p style={{ marginTop: 24, color: "var(--text-light)", fontSize: 13 }}>
-            Admissions is live (mock data) — the two remaining cards stay
-            placeholder until Staff Management (M9) and a support-ticket
-            module exist. Programme list here is a placeholder for Academic
-            Structure (M3), not yet built.
+          <p style={{ color: "var(--text-light)", fontSize: 13 }}>
+            Open <strong>Admissions</strong> in the sidebar to review the application queue.
           </p>
         </>
       )}

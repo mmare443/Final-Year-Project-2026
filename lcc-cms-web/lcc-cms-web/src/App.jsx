@@ -9,6 +9,7 @@ import { LearningProvider } from "./context/LearningContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
+import Admissions from "./pages/Admissions";
 import Activate from "./pages/Activate";
 import Apply from "./pages/Apply";
 import Unauthorized from "./pages/Unauthorized";
@@ -148,6 +149,14 @@ function App() {
                     }
                   />
                   <Route
+                    path="/lecturer/grading"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.LECTURER}>
+                        <Learning />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/hod"
                     element={
                       <ProtectedRoute allowedRole={ROLES.HOD}>
@@ -212,6 +221,14 @@ function App() {
                     }
                   />
                   <Route
+                    path="/registrar/admissions"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
+                        <Admissions />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/registrar/students"
                     element={
                       <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
@@ -229,6 +246,10 @@ function App() {
                   />
                   <Route
                     path="/registrar/registrations"
+                    element={<Navigate to="/registrar/course-registration" replace />}
+                  />
+                  <Route
+                    path="/registrar/course-registration"
                     element={
                       <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
                         <CourseRegistrations />
