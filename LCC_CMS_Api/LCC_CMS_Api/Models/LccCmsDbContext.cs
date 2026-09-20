@@ -996,6 +996,16 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.PostalAddress)
                 .HasMaxLength(500)
                 .HasColumnName("postal_address");
+            entity.Property(e => e.YearLevel).HasColumnName("year_level");
+            entity.Property(e => e.Province)
+                .HasMaxLength(80)
+                .HasColumnName("province");
+            entity.Property(e => e.District)
+                .HasMaxLength(80)
+                .HasColumnName("district");
+            entity.Property(e => e.Village)
+                .HasMaxLength(80)
+                .HasColumnName("village");
 
             entity.HasOne(d => d.Programme).WithMany(p => p.Students)
                 .HasForeignKey(d => d.ProgrammeId)
@@ -1093,6 +1103,9 @@ public partial class LccCmsDbContext : DbContext
                 .HasMaxLength(20)
                 .HasDefaultValue("Active")
                 .HasColumnName("status");
+            entity.Property(e => e.ProfilePhotoUrl)
+                .HasMaxLength(500)
+                .HasColumnName("profile_photo_url");
         });
 
         modelBuilder.Entity<WelfareCase>(entity =>

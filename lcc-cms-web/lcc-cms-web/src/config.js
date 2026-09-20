@@ -9,7 +9,7 @@
  * internal route.
  *
  * TODO: update this to the real deployed public site URL once it's hosted
- * (e.g. https://lccb.ac.pg). For now it points at a local static server —
+ * (e.g. https://lccbportal.org). For now it points at a local static server —
  * run one from your public site folder with, e.g.:
  *   python -m http.server 8899
  * and adjust the port below if you used a different one.

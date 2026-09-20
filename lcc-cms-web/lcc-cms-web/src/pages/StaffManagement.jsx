@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useAcademicStructure } from "../context/AcademicStructureContext";
+import { useMockAuth } from "../context/MockAuthContext";
 import { API_ORIGIN, API_UNREACHABLE, apiFetch, isNetworkFailure, readApiError } from "../api";
-import { CONTACT } from "../config/contactConfig";
 import { REGISTRAR_NAV } from "./registrarNav";
+import {
+  buildRecordPrintHtml,
+  fetchUserPhotoDataUrl,
+  printedAtLabel,
+  printHtmlDocument,
+} from "../print/printRecord";
 import "./AcademicStructure.css";
 import "./StudentRecords.css";
 import "./StaffManagement.css";
@@ -42,58 +48,30 @@ function staffPayload(form) {
   };
 }
 
-function printStaffProfile(row) {
-  const win = window.open("", "_blank", "noopener,width=800,height=900");
-  if (!win) return;
-  const extra = row.employmentDetails
-    ? `<p>${escapeHtml(row.employmentDetails)}</p>`
-    : "<p>—</p>";
-  win.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>Staff Profile — ${escapeHtml(row.staffNumber || "")}</title>
-  <style>
-    body { font-family: Segoe UI, Arial, sans-serif; color: #0D233A; margin: 32px; }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    h2 { font-size: 16px; margin: 24px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
-    .muted { color: #5A6B80; font-size: 12px; }
-    dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; }
-    dt { font-weight: 700; }
-    dd { margin: 0; }
-  </style>
-</head>
-<body>
-  <h1>${escapeHtml(CONTACT.institution)}</h1>
-  <p class="muted">Staff Profile Report</p>
-  <h2>${escapeHtml(row.fullName || "—")} <span class="muted">${escapeHtml(row.staffNumber || "")}</span></h2>
-  <dl>
-    <dt>Staff ID</dt><dd>${escapeHtml(row.staffNumber || "—")}</dd>
-    <dt>Full Name</dt><dd>${escapeHtml(row.fullName || "—")}</dd>
-    <dt>Email</dt><dd>${escapeHtml(row.email || "—")}</dd>
-    <dt>Role</dt><dd>${escapeHtml(row.role || "—")}</dd>
-    <dt>Job Title</dt><dd>${escapeHtml(row.jobTitle || "—")}</dd>
-    <dt>Department</dt><dd>${escapeHtml(row.departmentName || "—")}</dd>
-    <dt>Faculty</dt><dd>${escapeHtml(row.facultyName || "—")}</dd>
-    <dt>Status</dt><dd>${escapeHtml(row.status || "—")}</dd>
-  </dl>
-  <h2>Additional Staff Information</h2>
-  ${extra}
-  <p class="muted">${escapeHtml(CONTACT.postalOneLine)} · ${escapeHtml(CONTACT.phone)} · ${escapeHtml(CONTACT.primaryEmail)}</p>
-  <script>window.onload = function () { window.print(); }<\/script>
-</body>
-</html>`);
-  win.document.close();
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+async function printStaffProfile(row, printedBy) {
+  const photoDataUrl = await fetchUserPhotoDataUrl(row.staffId ?? row.userId);
+  const html = buildRecordPrintHtml({
+    documentTitle: "Staff Profile Report",
+    photoDataUrl,
+    printedBy,
+    printedAt: printedAtLabel(),
+    fields: [
+      ["Staff ID", row.staffNumber],
+      ["Full Name", row.fullName],
+      ["Email", row.email],
+      ["Role", row.role],
+      ["Job Title", row.jobTitle],
+      ["Department", row.departmentName],
+      ["Status", row.status],
+    ],
+    extraTitle: "Additional Staff Information",
+    extraText: row.employmentDetails,
+  });
+  printHtmlDocument(html);
 }
 
 export default function StaffManagement() {
+  const { displayName } = useMockAuth();
   const { departments, fetchAll } = useAcademicStructure();
   const [staff, setStaff] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -278,7 +256,7 @@ export default function StaffManagement() {
                   <div className="records-actions">
                     <button type="button" className="records-edit-btn" onClick={() => setViewRow(row)}>View</button>
                     <button type="button" className="records-edit-btn" onClick={() => openEdit(row)}>Edit</button>
-                    <button type="button" className="records-edit-btn" onClick={() => printStaffProfile(row)}>Print</button>
+                    <button type="button" className="records-edit-btn" onClick={() => printStaffProfile(row, displayName)}>Print</button>
                   </div>
                 </td>
               </tr>
@@ -305,7 +283,7 @@ export default function StaffManagement() {
             </dl>
             <div className="as-form-actions">
               <button type="button" className="as-save-btn" onClick={() => openEdit(viewRow)}>Edit / Save</button>
-              <button type="button" className="as-cancel-btn" onClick={() => printStaffProfile(viewRow)}>Print</button>
+              <button type="button" className="as-cancel-btn" onClick={() => printStaffProfile(viewRow, displayName)}>Print</button>
               <button type="button" className="as-cancel-btn" onClick={() => setViewRow(null)}>Close</button>
             </div>
           </div>

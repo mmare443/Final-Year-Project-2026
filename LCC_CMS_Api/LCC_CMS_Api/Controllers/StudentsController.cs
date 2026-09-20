@@ -362,12 +362,13 @@ public class StudentsController : ControllerBase
             Email = student.StudentNavigation?.Email ?? "",
             Phone = student.Admission?.ApplicantPhone ?? "",
             Programme = student.Programme?.ProgrammeName ?? "",
+            YearLevel = student.YearLevel,
             DateOfBirth = student.Admission?.DateOfBirth?.ToString("yyyy-MM-dd") ?? "",
             Gender = student.Admission?.Gender ?? "",
             MaritalStatus = "",
-            Province = "",
-            District = "",
-            Village = "",
+            Province = student.Province ?? "",
+            District = student.District ?? "",
+            Village = student.Village ?? "",
             PostalAddress = student.PostalAddress ?? "",
             EmergencyContactName = emergencyName,
             EmergencyContactPhone = emergencyPhone,
@@ -422,6 +423,7 @@ public class StudentProfile
     public string Email { get; set; } = "";
     public string Phone { get; set; } = "";
     public string Programme { get; set; } = "";
+    public byte? YearLevel { get; set; }
     public string DateOfBirth { get; set; } = "";
     public string Gender { get; set; } = "";
     public string MaritalStatus { get; set; } = "";

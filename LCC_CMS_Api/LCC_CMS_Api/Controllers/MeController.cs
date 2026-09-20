@@ -1,6 +1,8 @@
+using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LCC_CMS_Api.Controllers;
 
@@ -15,11 +17,13 @@ namespace LCC_CMS_Api.Controllers;
 public class MeController : ControllerBase
 {
     private readonly ICurrentUser _currentUser;
+    private readonly LccCmsDbContext _dbContext;
     private readonly ILogger<MeController> _logger;
 
-    public MeController(ICurrentUser currentUser, ILogger<MeController> logger)
+    public MeController(ICurrentUser currentUser, LccCmsDbContext dbContext, ILogger<MeController> logger)
     {
         _currentUser = currentUser;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -35,6 +39,19 @@ public class MeController : ControllerBase
 
         var roleSql = _currentUser.Role ?? "";
         var role = RoleNames.ToPolicyRole(roleSql);
+        string? photoUrl = null;
+        try
+        {
+            photoUrl = await _dbContext.Users.AsNoTracking()
+                .Where(u => u.UserId == _currentUser.UserId.Value)
+                .Select(u => u.ProfilePhotoUrl)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        catch (Exception)
+        {
+            photoUrl = null;
+        }
+
         _logger.LogInformation(
             "GET /api/me. UserId={UserId} Email={Email} Role={Role} RoleSql={RoleSql} StudentId={StudentId} StaffId={StaffId}",
             _currentUser.UserId,
@@ -54,6 +71,7 @@ public class MeController : ControllerBase
             StudentNumber = _currentUser.StudentNumber,
             StaffId = _currentUser.StaffId,
             JobTitle = _currentUser.JobTitle,
+            ProfilePhotoUrl = photoUrl,
         });
     }
 }
@@ -68,4 +86,5 @@ public class MeRecord
     public string? StudentNumber { get; set; }
     public int? StaffId { get; set; }
     public string? JobTitle { get; set; }
+    public string? ProfilePhotoUrl { get; set; }
 }

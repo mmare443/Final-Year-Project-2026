@@ -10,7 +10,7 @@
      faculty_id 1  Applied Studies  → renamed Faculty of Business Studies
      department_id 1  Department of Business Administration (unchanged)
      programme_id 1   Diploma in BAM (unchanged)
-     hod@lccb.ac.pg remains staff.department_id = Business Administration
+     hod@lccbportal.org remains staff.department_id = Business Administration
    ========================================================================= */
 
 SET NOCOUNT ON;
@@ -145,8 +145,8 @@ BEGIN TRANSACTION;
     /* Keep the seeded HoD on Business Administration (do not move or delete). */
     UPDATE dbo.staff
     SET department_id = @dept_business
-    WHERE staff_id = (SELECT user_id FROM dbo.users WHERE email = N'hod@lccb.ac.pg')
-      AND EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod@lccb.ac.pg');
+    WHERE staff_id = (SELECT TOP (1) user_id FROM dbo.users WHERE email IN (N'hod@lccbportal.org', N'hod@lccb.ac.pg'))
+      AND EXISTS (SELECT 1 FROM dbo.users WHERE email IN (N'hod@lccbportal.org', N'hod@lccb.ac.pg'));
 
 COMMIT TRANSACTION;
 

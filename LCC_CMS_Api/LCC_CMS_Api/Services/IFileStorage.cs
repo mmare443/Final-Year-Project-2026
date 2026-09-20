@@ -15,6 +15,14 @@ public interface IFileStorage
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default);
+
+    Task<StoredFile> SaveAsAsync(
+        Stream content,
+        string category,
+        string fileName,
+        string? originalFileName,
+        string? contentType,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record StoredFile(

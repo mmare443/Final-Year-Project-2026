@@ -19,6 +19,14 @@ public partial class Student
 
     public string? PostalAddress { get; set; }
 
+    public byte? YearLevel { get; set; }
+
+    public string? Province { get; set; }
+
+    public string? District { get; set; }
+
+    public string? Village { get; set; }
+
     public virtual AccommodationRecord? AccommodationRecord { get; set; }
 
     public virtual Admission? Admission { get; set; }

@@ -1,0 +1,155 @@
+/* Dedicated print template — used inside the print iframe, not the SPA chrome. */
+
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #111;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 12pt;
+  line-height: 1.45;
+}
+
+.print-sheet {
+  max-width: 190mm;
+  margin: 0 auto;
+  color: #111;
+  background: #fff;
+}
+
+.print-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 2px solid #111;
+  padding: 0 0 12px;
+  margin: 0 0 18px;
+}
+
+.print-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+
+.print-college {
+  margin: 0;
+  font-size: 18pt;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.print-doc-title {
+  margin: 4px 0 0;
+  font-size: 11pt;
+  font-weight: 600;
+  color: #333;
+}
+
+.print-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 10pt;
+  color: #333;
+  margin: 0 0 16px;
+}
+
+.print-identity {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin: 0 0 18px;
+}
+
+.print-photo {
+  width: 28mm;
+  height: 32mm;
+  object-fit: cover;
+  border: 1px solid #444;
+  background: #fff;
+}
+
+.print-photo-fallback {
+  width: 28mm;
+  height: 32mm;
+  border: 1px solid #444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9pt;
+  color: #444;
+}
+
+.print-fields {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.print-fields th,
+.print-fields td {
+  border: 1px solid #444;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.print-fields th {
+  width: 42mm;
+  font-weight: 700;
+  background: #f2f2f2;
+  color: #111;
+}
+
+.print-section {
+  margin: 18px 0 8px;
+  font-size: 12pt;
+  font-weight: 700;
+  border-bottom: 1px solid #111;
+  padding-bottom: 4px;
+}
+
+.print-extra {
+  border: 1px solid #444;
+  padding: 8px 10px;
+  min-height: 18mm;
+  white-space: pre-wrap;
+}
+
+.print-footer {
+  margin-top: 22px;
+  border-top: 1px solid #111;
+  padding-top: 8px;
+  font-size: 9pt;
+  color: #333;
+}
+
+@media print {
+  html,
+  body,
+  .print-sheet {
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-fields th {
+    background: #eee !important;
+  }
+
+  nav,
+  aside,
+  button,
+  .dash-sidebar,
+  .dash-header,
+  .records-actions {
+    display: none !important;
+  }
+}

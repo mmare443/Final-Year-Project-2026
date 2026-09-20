@@ -55,6 +55,41 @@ public sealed class LocalFileStorage : IFileStorage
         return Task.CompletedTask;
     }
 
+    public async Task<StoredFile> SaveAsAsync(
+        Stream content,
+        string category,
+        string fileName,
+        string? originalFileName,
+        string? contentType,
+        CancellationToken cancellationToken = default)
+    {
+        var safeCategory = ValidateSegment(category, nameof(category));
+        var safeName = ValidateFileName(fileName);
+        var categoryPath = Path.Combine(_rootPath, safeCategory);
+        Directory.CreateDirectory(categoryPath);
+
+        var fullPath = Path.Combine(categoryPath, safeName);
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+
+        await using var output = new FileStream(
+            fullPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 64 * 1024,
+            useAsync: true);
+        await content.CopyToAsync(output, cancellationToken);
+
+        return new StoredFile(
+            $"{safeCategory}/{safeName}",
+            Path.GetFileName(originalFileName ?? safeName),
+            contentType,
+            output.Length);
+    }
+
     public Task<Stream> OpenReadAsync(
         string storageKey,
         CancellationToken cancellationToken = default)
@@ -123,5 +158,19 @@ public sealed class LocalFileStorage : IFileStorage
         }
 
         return normalized;
+    }
+
+    private static string ValidateFileName(string fileName)
+    {
+        var name = Path.GetFileName((fileName ?? string.Empty).Trim());
+        if (string.IsNullOrWhiteSpace(name)
+            || name is "." or ".."
+            || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new ArgumentException("The file name is invalid.", nameof(fileName));
+        }
+
+        NormalizeExtension(Path.GetExtension(name));
+        return name;
     }
 }

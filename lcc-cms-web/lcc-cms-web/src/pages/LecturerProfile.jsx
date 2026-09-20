@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { Briefcase, Building2, UserCircle } from "../components/ProfileIcons";
 import { API_ORIGIN, apiFetch } from "../api";
+import { useMockAuth, avatarInitials } from "../context/MockAuthContext";
 import { LECTURER_NAV } from "./Attendance";
 import "./StudentRecords.css";
 import "./ManagementProfile.css";
+import "./StudentProfile.css";
 
 function displayOrDash(value) {
   if (value == null || String(value).trim() === "") return "—";
@@ -15,17 +17,18 @@ function roleLabel(me) {
   return displayOrDash(me.roleSql || me.role);
 }
 
-function emailInitial(email) {
-  const local = String(email || "").trim();
-  if (!local) return "";
-  return local.charAt(0).toUpperCase();
-}
-
 export default function LecturerProfile() {
+  const { avatarUrl, uploadProfilePhoto, displayName } = useMockAuth();
   const [me, setMe] = useState(null);
   const [staff, setStaff] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
+  const [photoError, setPhotoError] = useState(null);
+  const [pendingPhoto, setPendingPhoto] = useState(null);
+  const [pendingPreview, setPendingPreview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const photoInputRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -56,7 +59,47 @@ export default function LecturerProfile() {
     })();
   }, []);
 
-  const initial = emailInitial(me?.email);
+  useEffect(() => () => {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+  }, [pendingPreview]);
+
+  const pickPhoto = (file) => {
+    if (!file) return;
+    setPhotoError(null);
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setPhotoError("Please upload a JPG or PNG.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError("File too large — 5 MB maximum.");
+      return;
+    }
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    setPendingPhoto(file);
+    setPendingPreview(URL.createObjectURL(file));
+    setSaved(false);
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    setPhotoError(null);
+    try {
+      if (pendingPhoto) {
+        await uploadProfilePhoto(pendingPhoto);
+        if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+        setPendingPhoto(null);
+        setPendingPreview(null);
+      }
+      setSaved(true);
+    } catch (err) {
+      setPhotoError(err.message || "Couldn't save the profile photo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const photoSrc = pendingPreview || avatarUrl;
+  const initial = avatarInitials(me?.email || displayName);
 
   return (
     <DashboardLayout title="Lecturer Profile" navItems={LECTURER_NAV}>
@@ -70,13 +113,35 @@ export default function LecturerProfile() {
       {!isLoading && me && (
         <>
           <div className="profile-avatar">
-            <div className="profile-avatar-circle" aria-hidden="true">
-              {initial ? (
-                <span className="profile-avatar-initial">{initial}</span>
+            <button type="button" className="profile-photo-btn" onClick={() => photoInputRef.current?.click()}>
+              {photoSrc ? (
+                <img src={photoSrc} alt="Profile" className="profile-photo-img" />
+              ) : initial ? (
+                <span className="profile-photo-initial">{initial}</span>
               ) : (
                 <UserCircle className="profile-avatar-icon" />
               )}
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              onChange={(e) => pickPhoto(e.target.files[0])}
+              className="profile-photo-input"
+            />
+            <div className="profile-photo-actions">
+              <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
+                Change Photo
+              </button>
+              <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
+                Upload Photo
+              </button>
+              <button type="button" className="profile-save-btn" onClick={handleSaveProfile} disabled={saving}>
+                {saving ? "Saving…" : "Save Profile"}
+              </button>
             </div>
+            {photoError && <div className="records-error">{photoError}</div>}
+            {saved && <p className="profile-saved-note">Saved ✓</p>}
             <p className="profile-avatar-caption">{displayOrDash(me.email)}</p>
           </div>
 

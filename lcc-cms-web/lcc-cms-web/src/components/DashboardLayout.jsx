@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { useMockAuth, ROLE_LABELS } from "../context/MockAuthContext";
+import { useMockAuth, ROLE_LABELS, avatarInitials } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
 import { CONTACT } from "../config/contactConfig";
 import { isNavItemActive, resolveActiveNavPath } from "../nav/isNavActive";
@@ -87,12 +87,14 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
               type="button"
               className="dash-avatar"
               onClick={handleAvatarClick}
-              title="Upload ID photo / avatar"
+              title="Change profile photo"
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Your photo" className="dash-avatar-img" />
               ) : (
-                <span className="dash-avatar-placeholder">＋</span>
+                <span className="dash-avatar-placeholder">
+                  {avatarInitials(displayName) || "＋"}
+                </span>
               )}
             </button>
             <input

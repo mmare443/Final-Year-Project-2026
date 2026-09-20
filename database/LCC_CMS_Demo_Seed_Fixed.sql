@@ -86,43 +86,43 @@ BEGIN TRANSACTION;
 
     /* ----- Staff (reuse lab Principal / Registrar / Business HoD / Business lecturer) ----- */
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'principal@lccb.ac.pg')
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'principal@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000005', N'principal@lccb.ac.pg', N'Management/Principal', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'registrar@lccb.ac.pg')
+        VALUES (N'00000000-0000-0000-0000-000000000005', N'principal@lccbportal.org', N'Management/Principal', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'registrar@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000004', N'registrar@lccb.ac.pg', N'Registrar/Admin', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod@lccb.ac.pg')
+        VALUES (N'00000000-0000-0000-0000-000000000004', N'registrar@lccbportal.org', N'Registrar/Admin', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000003', N'hod@lccb.ac.pg', N'HoD', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod.ministry@lccb.ac.pg')
+        VALUES (N'00000000-0000-0000-0000-000000000003', N'hod@lccbportal.org', N'HoD', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod.ministry@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-4000-8000-000000000211', N'hod.ministry@lccb.ac.pg', N'HoD', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod.agriculture@lccb.ac.pg')
+        VALUES (N'00000000-0000-4000-8000-000000000211', N'hod.ministry@lccbportal.org', N'HoD', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod.agriculture@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-4000-8000-000000000212', N'hod.agriculture@lccb.ac.pg', N'HoD', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer@lccb.ac.pg')
+        VALUES (N'00000000-0000-4000-8000-000000000212', N'hod.agriculture@lccbportal.org', N'HoD', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000002', N'lecturer@lccb.ac.pg', N'Lecturer', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer.kila@lccb.ac.pg')
+        VALUES (N'00000000-0000-0000-0000-000000000002', N'lecturer@lccbportal.org', N'Lecturer', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer.kila@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-4000-8000-000000000221', N'lecturer.kila@lccb.ac.pg', N'Lecturer', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer.ministry@lccb.ac.pg')
+        VALUES (N'00000000-0000-4000-8000-000000000221', N'lecturer.kila@lccbportal.org', N'Lecturer', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer.ministry@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-4000-8000-000000000222', N'lecturer.ministry@lccb.ac.pg', N'Lecturer', N'Active');
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer.agriculture@lccb.ac.pg')
+        VALUES (N'00000000-0000-4000-8000-000000000222', N'lecturer.ministry@lccbportal.org', N'Lecturer', N'Active');
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer.agriculture@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-4000-8000-000000000223', N'lecturer.agriculture@lccb.ac.pg', N'Lecturer', N'Active');
+        VALUES (N'00000000-0000-4000-8000-000000000223', N'lecturer.agriculture@lccbportal.org', N'Lecturer', N'Active');
 
-    DECLARE @principal INT = (SELECT user_id FROM dbo.users WHERE email = N'principal@lccb.ac.pg');
-    DECLARE @registrar INT = (SELECT user_id FROM dbo.users WHERE email = N'registrar@lccb.ac.pg');
-    DECLARE @hod_bus INT = (SELECT user_id FROM dbo.users WHERE email = N'hod@lccb.ac.pg');
-    DECLARE @hod_min INT = (SELECT user_id FROM dbo.users WHERE email = N'hod.ministry@lccb.ac.pg');
-    DECLARE @hod_agr INT = (SELECT user_id FROM dbo.users WHERE email = N'hod.agriculture@lccb.ac.pg');
-    DECLARE @lec_bus1 INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer@lccb.ac.pg');
-    DECLARE @lec_bus2 INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer.kila@lccb.ac.pg');
-    DECLARE @lec_min INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer.ministry@lccb.ac.pg');
-    DECLARE @lec_agr INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer.agriculture@lccb.ac.pg');
+    DECLARE @principal INT = (SELECT user_id FROM dbo.users WHERE email = N'principal@lccbportal.org');
+    DECLARE @registrar INT = (SELECT user_id FROM dbo.users WHERE email = N'registrar@lccbportal.org');
+    DECLARE @hod_bus INT = (SELECT user_id FROM dbo.users WHERE email = N'hod@lccbportal.org');
+    DECLARE @hod_min INT = (SELECT user_id FROM dbo.users WHERE email = N'hod.ministry@lccbportal.org');
+    DECLARE @hod_agr INT = (SELECT user_id FROM dbo.users WHERE email = N'hod.agriculture@lccbportal.org');
+    DECLARE @lec_bus1 INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer@lccbportal.org');
+    DECLARE @lec_bus2 INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer.kila@lccbportal.org');
+    DECLARE @lec_min INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer.ministry@lccbportal.org');
+    DECLARE @lec_agr INT = (SELECT user_id FROM dbo.users WHERE email = N'lecturer.agriculture@lccbportal.org');
 
     IF NOT EXISTS (SELECT 1 FROM dbo.staff WHERE staff_id = @principal)
         INSERT INTO dbo.staff (staff_id, department_id, job_title, employment_details)
@@ -234,24 +234,24 @@ BEGIN TRANSACTION;
         applicant_name NVARCHAR(150) NOT NULL
     );
     INSERT INTO @stu VALUES
-        (N'student@lccb.ac.pg', N'00000000-0000-0000-0000-000000000001', N'LCC26001', @prog_bam_dip, N'Enrolled', N'Kila Student'),
-        (N'm.mendi@lccb.ac.pg', N'00000000-0000-4000-8000-000000000301', N'LCC26002', @prog_bam_dip, N'Enrolled', N'Mary Mendi'),
-        (N'j.waigani@lccb.ac.pg', N'00000000-0000-4000-8000-000000000302', N'LCC26003', @prog_bam_dip, N'Enrolled', N'John Waigani'),
-        (N'r.lae@lccb.ac.pg', N'00000000-0000-4000-8000-000000000303', N'LCC26004', @prog_bam_dip, N'Enrolled', N'Ruth Lae'),
-        (N'p.goroka@lccb.ac.pg', N'00000000-0000-4000-8000-000000000304', N'LCC26005', @prog_bam_dip, N'Enrolled', N'Peter Goroka'),
-        (N'a.madang@lccb.ac.pg', N'00000000-0000-4000-8000-000000000305', N'LCC26006', @prog_bam_cert, N'Enrolled', N'Anna Madang'),
-        (N'd.rabaul@lccb.ac.pg', N'00000000-0000-4000-8000-000000000306', N'LCC26007', @prog_bam_dip, N'Applied', N'David Rabaul'),
-        (N's.wewak@lccb.ac.pg', N'00000000-0000-4000-8000-000000000307', N'LCC26008', @prog_bam_dip, N'Graduated', N'Sarah Wewak'),
-        (N't.hagen@lccb.ac.pg', N'00000000-0000-4000-8000-000000000308', N'LCC26009', @prog_min_dip, N'Enrolled', N'Thomas Hagen'),
-        (N'l.kerema@lccb.ac.pg', N'00000000-0000-4000-8000-000000000309', N'LCC26010', @prog_min_dip, N'Enrolled', N'Lina Kerema'),
-        (N'b.alotau@lccb.ac.pg', N'00000000-0000-4000-8000-000000000310', N'LCC26011', @prog_min_dip, N'Enrolled', N'Ben Alotau'),
-        (N'e.kimbe@lccb.ac.pg', N'00000000-0000-4000-8000-000000000311', N'LCC26012', @prog_min_cert, N'Applied', N'Esther Kimbe'),
-        (N'g.vanimo@lccb.ac.pg', N'00000000-0000-4000-8000-000000000312', N'LCC26013', @prog_min_dip, N'Graduated', N'Grace Vanimo'),
-        (N'h.popondetta@lccb.ac.pg', N'00000000-0000-4000-8000-000000000313', N'LCC26014', @prog_agr_dip, N'Enrolled', N'Helen Popondetta'),
-        (N'n.kavieng@lccb.ac.pg', N'00000000-0000-4000-8000-000000000314', N'LCC26015', @prog_agr_dip, N'Enrolled', N'Noah Kavieng'),
-        (N'c.kundiawa@lccb.ac.pg', N'00000000-0000-4000-8000-000000000315', N'LCC26016', @prog_agr_dip, N'Enrolled', N'Caleb Kundiawa'),
-        (N'f.daru@lccb.ac.pg', N'00000000-0000-4000-8000-000000000316', N'LCC26017', @prog_agr_cert, N'Applied', N'Faith Daru'),
-        (N'i.buka@lccb.ac.pg', N'00000000-0000-4000-8000-000000000317', N'LCC26018', @prog_agr_dip, N'Graduated', N'Isaac Buka');
+        (N'kstudent@student.lccbportal.org', N'00000000-0000-0000-0000-000000000001', N'LCC26001', @prog_bam_dip, N'Enrolled', N'Kila Student'),
+        (N'mmendi@student.lccbportal.org', N'00000000-0000-4000-8000-000000000301', N'LCC26002', @prog_bam_dip, N'Enrolled', N'Mary Mendi'),
+        (N'jwaigani@student.lccbportal.org', N'00000000-0000-4000-8000-000000000302', N'LCC26003', @prog_bam_dip, N'Enrolled', N'John Waigani'),
+        (N'rlae@student.lccbportal.org', N'00000000-0000-4000-8000-000000000303', N'LCC26004', @prog_bam_dip, N'Enrolled', N'Ruth Lae'),
+        (N'pgoroka@student.lccbportal.org', N'00000000-0000-4000-8000-000000000304', N'LCC26005', @prog_bam_dip, N'Enrolled', N'Peter Goroka'),
+        (N'amadang@student.lccbportal.org', N'00000000-0000-4000-8000-000000000305', N'LCC26006', @prog_bam_cert, N'Enrolled', N'Anna Madang'),
+        (N'drabaul@student.lccbportal.org', N'00000000-0000-4000-8000-000000000306', N'LCC26007', @prog_bam_dip, N'Applied', N'David Rabaul'),
+        (N'swewak@student.lccbportal.org', N'00000000-0000-4000-8000-000000000307', N'LCC26008', @prog_bam_dip, N'Graduated', N'Sarah Wewak'),
+        (N'thagen@student.lccbportal.org', N'00000000-0000-4000-8000-000000000308', N'LCC26009', @prog_min_dip, N'Enrolled', N'Thomas Hagen'),
+        (N'lkerema@student.lccbportal.org', N'00000000-0000-4000-8000-000000000309', N'LCC26010', @prog_min_dip, N'Enrolled', N'Lina Kerema'),
+        (N'balotau@student.lccbportal.org', N'00000000-0000-4000-8000-000000000310', N'LCC26011', @prog_min_dip, N'Enrolled', N'Ben Alotau'),
+        (N'ekimbe@student.lccbportal.org', N'00000000-0000-4000-8000-000000000311', N'LCC26012', @prog_min_cert, N'Applied', N'Esther Kimbe'),
+        (N'gvanimo@student.lccbportal.org', N'00000000-0000-4000-8000-000000000312', N'LCC26013', @prog_min_dip, N'Graduated', N'Grace Vanimo'),
+        (N'hpopondetta@student.lccbportal.org', N'00000000-0000-4000-8000-000000000313', N'LCC26014', @prog_agr_dip, N'Enrolled', N'Helen Popondetta'),
+        (N'nkavieng@student.lccbportal.org', N'00000000-0000-4000-8000-000000000314', N'LCC26015', @prog_agr_dip, N'Enrolled', N'Noah Kavieng'),
+        (N'ckundiawa@student.lccbportal.org', N'00000000-0000-4000-8000-000000000315', N'LCC26016', @prog_agr_dip, N'Enrolled', N'Caleb Kundiawa'),
+        (N'fdaru@student.lccbportal.org', N'00000000-0000-4000-8000-000000000316', N'LCC26017', @prog_agr_cert, N'Applied', N'Faith Daru'),
+        (N'ibuka@student.lccbportal.org', N'00000000-0000-4000-8000-000000000317', N'LCC26018', @prog_agr_dip, N'Graduated', N'Isaac Buka');
 
     INSERT INTO dbo.users (entra_id, email, role, status)
     SELECT s.entra, s.email, N'Student', N'Active'
@@ -675,14 +675,14 @@ ORDER BY 1, 2;
 GO
 
 /* Login (after API restart, password LccCms!2026):
-     principal@lccb.ac.pg
-     registrar@lccb.ac.pg
-     hod@lccb.ac.pg                 Business
-     hod.ministry@lccb.ac.pg
-     hod.agriculture@lccb.ac.pg
-     lecturer@lccb.ac.pg            Business
-     lecturer.kila@lccb.ac.pg       Business
-     lecturer.ministry@lccb.ac.pg
-     lecturer.agriculture@lccb.ac.pg
-     student@lccb.ac.pg             LCC26001 (and other *@lccb.ac.pg students)
+     principal@lccbportal.org
+     registrar@lccbportal.org
+     hod@lccbportal.org                 Business
+     hod.ministry@lccbportal.org
+     hod.agriculture@lccbportal.org
+     lecturer@lccbportal.org            Business
+     lecturer.kila@lccbportal.org       Business
+     lecturer.ministry@lccbportal.org
+     lecturer.agriculture@lccbportal.org
+     kstudent@student.lccbportal.org    LCC26001 (and other *@student.lccbportal.org students)
 */

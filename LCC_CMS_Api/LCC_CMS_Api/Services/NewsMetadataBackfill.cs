@@ -55,26 +55,26 @@ public static class NewsMetadataBackfill
                 continue;
             }
 
-            var updated = false;
+            var metadataUpdated = false;
             if (string.IsNullOrWhiteSpace(row.SourceTitle) && !string.IsNullOrWhiteSpace(meta.Title))
             {
                 row.SourceTitle = Trim(meta.Title, 500);
-                updated = true;
+                metadataUpdated = true;
             }
 
             if (string.IsNullOrWhiteSpace(row.SourceSubtitle) && !string.IsNullOrWhiteSpace(meta.Description))
             {
                 row.SourceSubtitle = Trim(meta.Description, 300);
-                updated = true;
+                metadataUpdated = true;
             }
 
             if (string.IsNullOrWhiteSpace(row.ThumbnailUrl) && !string.IsNullOrWhiteSpace(meta.ImageUrl))
             {
                 row.ThumbnailUrl = Trim(meta.ImageUrl, 1000);
-                updated = true;
+                metadataUpdated = true;
             }
 
-            if (updated) changed++;
+            if (updated || metadataUpdated) changed++;
         }
 
         if (changed > 0)

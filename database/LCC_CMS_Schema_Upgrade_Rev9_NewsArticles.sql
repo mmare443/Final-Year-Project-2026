@@ -42,7 +42,8 @@ GO
 DECLARE @createdBy INT = (
     SELECT TOP (1) user_id
     FROM dbo.users
-    WHERE email = N'registrar@lccb.ac.pg' AND status = N'Active'
+    WHERE email IN (N'registrar@lccbportal.org', N'registrar@lccb.ac.pg')
+      AND status = N'Active'
 );
 
 IF @createdBy IS NULL

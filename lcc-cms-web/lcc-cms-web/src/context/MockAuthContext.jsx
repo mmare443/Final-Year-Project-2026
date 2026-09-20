@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { API_ORIGIN, apiFetch, setAccessToken, getAccessToken, clearAccessToken } from "../api";
 
 /**
@@ -37,6 +37,34 @@ export function MockAuthProvider({ children }) {
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [ready, setReady] = useState(false);
+  const avatarObjectUrlRef = useRef(null);
+
+  const clearAvatar = useCallback(() => {
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+      avatarObjectUrlRef.current = null;
+    }
+    setAvatarUrl(null);
+  }, []);
+
+  const loadProfilePhoto = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_ORIGIN}/api/profile/photo`);
+      if (!res.ok) {
+        clearAvatar();
+        return;
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+      }
+      avatarObjectUrlRef.current = objectUrl;
+      setAvatarUrl(objectUrl);
+    } catch {
+      clearAvatar();
+    }
+  }, [clearAvatar]);
 
   const applyMe = (me) => {
     setRole(me.role);
@@ -49,8 +77,8 @@ export function MockAuthProvider({ children }) {
     setRole(null);
     setJobTitle(null);
     setDisplayName("");
-    setAvatarUrl(null);
-  }, []);
+    clearAvatar();
+  }, [clearAvatar]);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +92,10 @@ export function MockAuthProvider({ children }) {
         const res = await apiFetch(`${API_ORIGIN}/api/me`);
         if (!res.ok) throw new Error("session");
         const me = await res.json();
-        if (!cancelled) applyMe(me);
+        if (!cancelled) {
+          applyMe(me);
+          await loadProfilePhoto();
+        }
       } catch {
         if (!cancelled) signOut();
       } finally {
@@ -73,7 +104,7 @@ export function MockAuthProvider({ children }) {
     };
     restore();
     return () => { cancelled = true; };
-  }, [signOut]);
+  }, [signOut, loadProfilePhoto]);
 
   const login = async (email, password) => {
     const res = await fetch(`${API_ORIGIN}/api/auth/login`, {
@@ -94,18 +125,33 @@ export function MockAuthProvider({ children }) {
     const meRes = await apiFetch(`${API_ORIGIN}/api/me`);
     if (meRes.ok) {
       applyMe(await meRes.json());
+      await loadProfilePhoto();
     } else {
       setRole(data.role);
       setDisplayName(data.email || email);
       setJobTitle(null);
+      clearAvatar();
     }
     return data.role;
   };
 
-  const setAvatar = (file) => {
+  const uploadProfilePhoto = async (file) => {
     if (!file) return;
-    const objectUrl = URL.createObjectURL(file);
-    setAvatarUrl(objectUrl);
+    const formData = new FormData();
+    formData.append("photo", file);
+    const res = await apiFetch(`${API_ORIGIN}/api/profile/photo`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Photo upload failed (${res.status}).`);
+    }
+    await loadProfilePhoto();
+  };
+
+  const setAvatar = (file) => {
+    uploadProfilePhoto(file).catch(() => {});
   };
 
   const value = {
@@ -116,6 +162,8 @@ export function MockAuthProvider({ children }) {
     displayName,
     avatarUrl,
     setAvatar,
+    uploadProfilePhoto,
+    loadProfilePhoto,
     login,
     signOut,
   };
@@ -125,6 +173,18 @@ export function MockAuthProvider({ children }) {
       {children}
     </MockAuthContext.Provider>
   );
+}
+
+export function avatarInitials(displayName) {
+  const local = String(displayName || "").trim().split("@")[0];
+  const parts = local.split(/[.\s_-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+  }
+  if (parts[0]) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return "";
 }
 
 export function useMockAuth() {

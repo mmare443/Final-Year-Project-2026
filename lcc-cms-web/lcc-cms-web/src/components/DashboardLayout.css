@@ -217,6 +217,31 @@
   color: var(--secondary);
 }
 
+@media print {
+  .dash-sidebar,
+  .dash-header,
+  .dash-signout,
+  .dash-nav,
+  .dash-site-link,
+  .records-actions,
+  .as-form-actions,
+  .as-toolbar,
+  .as-add-btn,
+  button {
+    display: none !important;
+  }
+
+  .dash-shell,
+  .dash-main,
+  .dash-content {
+    display: block;
+    width: 100%;
+    background: #fff;
+    color: #000;
+    box-shadow: none;
+  }
+}
+
 @media (max-width: 720px) {
   .dash-header {
     flex-wrap: wrap;

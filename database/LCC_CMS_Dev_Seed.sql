@@ -169,36 +169,36 @@ BEGIN TRANSACTION;
 
     /* ----- 2. Users (password_hash omitted / NULL for LabPasswordSeeder) ----- */
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'student@lccb.ac.pg')
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'kstudent@student.lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000001', N'student@lccb.ac.pg', N'Student', N'Active');
+        VALUES (N'00000000-0000-0000-0000-000000000001', N'kstudent@student.lccbportal.org', N'Student', N'Active');
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer@lccb.ac.pg')
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'lecturer@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000002', N'lecturer@lccb.ac.pg', N'Lecturer', N'Active');
+        VALUES (N'00000000-0000-0000-0000-000000000002', N'lecturer@lccbportal.org', N'Lecturer', N'Active');
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod@lccb.ac.pg')
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'hod@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000003', N'hod@lccb.ac.pg', N'HoD', N'Active');
+        VALUES (N'00000000-0000-0000-0000-000000000003', N'hod@lccbportal.org', N'HoD', N'Active');
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'registrar@lccb.ac.pg')
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'registrar@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000004', N'registrar@lccb.ac.pg', N'Registrar/Admin', N'Active');
+        VALUES (N'00000000-0000-0000-0000-000000000004', N'registrar@lccbportal.org', N'Registrar/Admin', N'Active');
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'principal@lccb.ac.pg')
+    IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE email = N'principal@lccbportal.org')
         INSERT INTO dbo.users (entra_id, email, role, status)
-        VALUES (N'00000000-0000-0000-0000-000000000005', N'principal@lccb.ac.pg', N'Management/Principal', N'Active');
+        VALUES (N'00000000-0000-0000-0000-000000000005', N'principal@lccbportal.org', N'Management/Principal', N'Active');
 
     DECLARE @student_user_id INT =
-        (SELECT user_id FROM dbo.users WHERE email = N'student@lccb.ac.pg');
+        (SELECT user_id FROM dbo.users WHERE email = N'kstudent@student.lccbportal.org');
     DECLARE @lecturer_user_id INT =
-        (SELECT user_id FROM dbo.users WHERE email = N'lecturer@lccb.ac.pg');
+        (SELECT user_id FROM dbo.users WHERE email = N'lecturer@lccbportal.org');
     DECLARE @hod_user_id INT =
-        (SELECT user_id FROM dbo.users WHERE email = N'hod@lccb.ac.pg');
+        (SELECT user_id FROM dbo.users WHERE email = N'hod@lccbportal.org');
     DECLARE @registrar_user_id INT =
-        (SELECT user_id FROM dbo.users WHERE email = N'registrar@lccb.ac.pg');
+        (SELECT user_id FROM dbo.users WHERE email = N'registrar@lccbportal.org');
     DECLARE @principal_user_id INT =
-        (SELECT user_id FROM dbo.users WHERE email = N'principal@lccb.ac.pg');
+        (SELECT user_id FROM dbo.users WHERE email = N'principal@lccbportal.org');
 
     /* Student subtype (PK = users.user_id) */
     IF NOT EXISTS (SELECT 1 FROM dbo.students WHERE student_id = @student_user_id)
@@ -320,9 +320,9 @@ ORDER BY user_id;
 GO
 
 /* Login after API restart (all passwords LccCms!2026):
-     student@lccb.ac.pg      Student
-     lecturer@lccb.ac.pg     Lecturer
-     hod@lccb.ac.pg          HoD
-     registrar@lccb.ac.pg    RegistrarAdmin (SQL: Registrar/Admin)
-     principal@lccb.ac.pg    ManagementPrincipal (SQL: Management/Principal)
+     kstudent@student.lccbportal.org      Student
+     lecturer@lccbportal.org     Lecturer
+     hod@lccbportal.org          HoD
+     registrar@lccbportal.org    RegistrarAdmin (SQL: Registrar/Admin)
+     principal@lccbportal.org    ManagementPrincipal (SQL: Management/Principal)
 */

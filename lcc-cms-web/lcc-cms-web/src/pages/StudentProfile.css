@@ -43,6 +43,31 @@
   line-height: 1.6;
 }
 
+.profile-photo-initial {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.profile-photo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.profile-photo-action {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  background: #F4F7FB;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
 .profile-photo-input {
   display: none;
 }

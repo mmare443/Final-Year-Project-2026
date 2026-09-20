@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useStudents } from "../context/StudentsContext";
+import { useMockAuth, avatarInitials } from "../context/MockAuthContext";
 import { STUDENT_NAV } from "./Attendance";
-import { API_ORIGIN } from "../context/MockDataContext";
 import "./StudentProfile.css";
 
 export default function StudentProfile() {
-  const { myProfile, isLoading, apiError, fetchMyProfile, updateMyProfile, uploadMyPhoto } = useStudents();
+  const { myProfile, isLoading, apiError, fetchMyProfile, updateMyProfile } = useStudents();
+  const { avatarUrl, uploadProfilePhoto, displayName } = useMockAuth();
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [photoError, setPhotoError] = useState(null);
+  const [pendingPhoto, setPendingPhoto] = useState(null);
+  const [pendingPreview, setPendingPreview] = useState(null);
   const photoInputRef = useRef(null);
 
   useEffect(() => {
@@ -29,32 +32,18 @@ export default function StudentProfile() {
     }
   }, [myProfile]);
 
+  useEffect(() => () => {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+  }, [pendingPreview]);
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setSaved(false);
   };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await updateMyProfile(form);
-      setSaved(true);
-    } catch (err) {
-      setSaveError(err.message || "Couldn't save — check the backend API is running.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handlePhotoClick = () => photoInputRef.current?.click();
-
-  const handlePhotoChange = async (e) => {
-    const file = e.target.files[0];
+  const pickPhoto = (file) => {
     if (!file) return;
     setPhotoError(null);
-
     if (!["image/jpeg", "image/png"].includes(file.type)) {
       setPhotoError("Please upload a JPG or PNG.");
       return;
@@ -63,11 +52,30 @@ export default function StudentProfile() {
       setPhotoError("File too large — 5 MB maximum.");
       return;
     }
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    setPendingPhoto(file);
+    setPendingPreview(URL.createObjectURL(file));
+    setSaved(false);
+  };
 
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setPhotoError(null);
     try {
-      await uploadMyPhoto(file);
+      if (pendingPhoto) {
+        await uploadProfilePhoto(pendingPhoto);
+        if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+        setPendingPhoto(null);
+        setPendingPreview(null);
+      }
+      await updateMyProfile(form);
+      setSaved(true);
     } catch (err) {
-      setPhotoError(err.message || "Upload failed — check the backend API is running.");
+      setSaveError(err.message || "Couldn't save — check the backend API is running.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -87,13 +95,18 @@ export default function StudentProfile() {
     );
   }
 
+  const photoSrc = pendingPreview || avatarUrl;
+  const initial = avatarInitials(myProfile.fullName || displayName);
+
   return (
     <DashboardLayout title="My Profile" navItems={STUDENT_NAV}>
       <div className="profile-layout">
         <div className="profile-photo-card">
-          <button type="button" className="profile-photo-btn" onClick={handlePhotoClick}>
-            {myProfile.photoPath ? (
-              <img src={`${API_ORIGIN}${myProfile.photoPath}`} alt="Profile" className="profile-photo-img" />
+          <button type="button" className="profile-photo-btn" onClick={() => photoInputRef.current?.click()}>
+            {photoSrc ? (
+              <img src={photoSrc} alt="Profile" className="profile-photo-img" />
+            ) : initial ? (
+              <span className="profile-photo-initial">{initial}</span>
             ) : (
               <span className="profile-photo-placeholder">＋<br />Add Photo</span>
             )}
@@ -102,9 +115,17 @@ export default function StudentProfile() {
             ref={photoInputRef}
             type="file"
             accept="image/jpeg,image/png"
-            onChange={handlePhotoChange}
+            onChange={(e) => pickPhoto(e.target.files[0])}
             className="profile-photo-input"
           />
+          <div className="profile-photo-actions">
+            <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
+              Change Photo
+            </button>
+            <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
+              Upload Photo
+            </button>
+          </div>
           {photoError && <div className="field-note field-error">{photoError}</div>}
           <div className="profile-id-name">{myProfile.fullName}</div>
           <div className="profile-id-number">{myProfile.id}</div>
@@ -116,6 +137,10 @@ export default function StudentProfile() {
             <div>
               <span className="profile-readonly-label">Programme</span>
               <span className="profile-readonly-value">{myProfile.programme}</span>
+            </div>
+            <div>
+              <span className="profile-readonly-label">Year Level</span>
+              <span className="profile-readonly-value">{myProfile.yearLevel ? `Year ${myProfile.yearLevel}` : "—"}</span>
             </div>
             <div>
               <span className="profile-readonly-label">Email</span>
@@ -165,7 +190,7 @@ export default function StudentProfile() {
 
             <div className="profile-save-row">
               <button type="submit" className="profile-save-btn" disabled={saving}>
-                {saving ? "Saving…" : "Save Changes"}
+                {saving ? "Saving…" : "Save Profile"}
               </button>
               {saved && <span className="profile-saved-note">Saved ✓</span>}
             </div>

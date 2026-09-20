@@ -1,10 +1,40 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { useStudents } from "../context/StudentsContext";
+import { useMockAuth } from "../context/MockAuthContext";
 import { REGISTRAR_NAV } from "./registrarNav";
+import {
+  buildRecordPrintHtml,
+  fetchUserPhotoDataUrl,
+  printedAtLabel,
+  printHtmlDocument,
+} from "../print/printRecord";
 import "./StudentRecords.css";
 
+async function printStudentRecord(row, printedBy) {
+  const photoDataUrl = await fetchUserPhotoDataUrl(row.studentId ?? row.userId);
+  const html = buildRecordPrintHtml({
+    documentTitle: "Student Record Report",
+    photoDataUrl,
+    printedBy,
+    printedAt: printedAtLabel(),
+    fields: [
+      ["Student ID", row.studentId ?? row.id],
+      ["Student Number", row.studentNumber || row.id],
+      ["Full Name", row.fullName],
+      ["Programme", row.programme],
+      ["Year Level", row.yearLevel != null ? `Year ${row.yearLevel}` : ""],
+      ["Phone", row.phone],
+      ["Emergency Contact", row.emergencyContactName],
+      ["Emergency Contact Phone", row.emergencyContactPhone],
+      ["Postal Address", row.postalAddress],
+    ],
+  });
+  printHtmlDocument(html);
+}
+
 export default function StudentRecords() {
+  const { displayName } = useMockAuth();
   const { allStudents, isLoading, apiError, fetchAllStudents, correctStudentProfile } = useStudents();
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
@@ -75,6 +105,7 @@ export default function StudentRecords() {
               <th>Student Name</th>
               <th>Student ID</th>
               <th>Programme</th>
+              <th>Year</th>
               <th>Phone</th>
               <th>Emergency Contact</th>
               <th>Postal Address</th>
@@ -84,7 +115,7 @@ export default function StudentRecords() {
           <tbody>
             {allStudents.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ color: "var(--text-light)" }}>No student records.</td>
+                <td colSpan={8} style={{ color: "var(--text-light)" }}>No student records.</td>
               </tr>
             )}
             {allStudents.map((s) => (
@@ -94,6 +125,7 @@ export default function StudentRecords() {
                 <td>{s.programme}</td>
                 {editingId === s.id ? (
                   <>
+                    <td>{s.yearLevel ? `Year ${s.yearLevel}` : "—"}</td>
                     <td>
                       <input
                         type="tel" name="phone" value={editForm.phone}
@@ -130,6 +162,7 @@ export default function StudentRecords() {
                   </>
                 ) : (
                   <>
+                    <td>{s.yearLevel ? `Year ${s.yearLevel}` : "—"}</td>
                     <td>{s.phone || "—"}</td>
                     <td>{s.emergencyContactName || "—"}{s.emergencyContactPhone ? ` (${s.emergencyContactPhone})` : ""}</td>
                     <td>{s.postalAddress || "—"}</td>
@@ -140,6 +173,9 @@ export default function StudentRecords() {
                         </button>
                         <button type="button" className="records-edit-btn" onClick={() => startEdit(s)}>
                           Correct
+                        </button>
+                        <button type="button" className="records-edit-btn" onClick={() => printStudentRecord(s, displayName)}>
+                          Print
                         </button>
                       </div>
                     </td>
@@ -156,20 +192,20 @@ export default function StudentRecords() {
           <div className="staff-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="student-detail-title">
             <h3 id="student-detail-title">Student details</h3>
             <dl className="staff-detail-list">
-              <dt>Student ID</dt><dd>{viewRow.studentNumber || viewRow.id}</dd>
+              <dt>Student ID</dt><dd>{viewRow.studentId ?? "—"}</dd>
+              <dt>Student Number</dt><dd>{viewRow.studentNumber || viewRow.id}</dd>
               <dt>Full Name</dt><dd>{viewRow.fullName || "—"}</dd>
               <dt>Email</dt><dd>{viewRow.email || "—"}</dd>
               <dt>Programme</dt><dd>{viewRow.programme || "—"}</dd>
+              <dt>Year Level</dt><dd>{viewRow.yearLevel ? `Year ${viewRow.yearLevel}` : "—"}</dd>
               <dt>Phone</dt><dd>{viewRow.phone || "—"}</dd>
-              <dt>Emergency contact</dt>
-              <dd>
-                {viewRow.emergencyContactName || "—"}
-                {viewRow.emergencyContactPhone ? ` (${viewRow.emergencyContactPhone})` : ""}
-              </dd>
+              <dt>Emergency Contact</dt><dd>{viewRow.emergencyContactName || "—"}</dd>
+              <dt>Emergency Contact Phone</dt><dd>{viewRow.emergencyContactPhone || "—"}</dd>
               <dt>Postal address</dt><dd>{viewRow.postalAddress || "—"}</dd>
             </dl>
             <div className="as-form-actions">
               <button type="button" className="as-save-btn" onClick={() => startEdit(viewRow)}>Correct</button>
+              <button type="button" className="as-cancel-btn" onClick={() => printStudentRecord(viewRow, displayName)}>Print</button>
               <button type="button" className="as-cancel-btn" onClick={() => setViewRow(null)}>Close</button>
             </div>
           </div>

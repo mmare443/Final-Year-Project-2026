@@ -35,5 +35,7 @@ public partial class User
 
     public virtual Staff? Staff { get; set; }
 
+    public string? ProfilePhotoUrl { get; set; }
+
     public virtual Student? Student { get; set; }
 }
