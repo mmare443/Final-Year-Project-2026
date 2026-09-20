@@ -40,16 +40,23 @@ public class MeController : ControllerBase
         var roleSql = _currentUser.Role ?? "";
         var role = RoleNames.ToPolicyRole(roleSql);
         string? photoUrl = null;
+        var mustChange = false;
         try
         {
-            photoUrl = await _dbContext.Users.AsNoTracking()
+            var row = await _dbContext.Users.AsNoTracking()
                 .Where(u => u.UserId == _currentUser.UserId.Value)
-                .Select(u => u.ProfilePhotoUrl)
+                .Select(u => new { u.ProfilePhotoUrl, u.MustChangePassword })
                 .FirstOrDefaultAsync(cancellationToken);
+            if (row is not null)
+            {
+                photoUrl = row.ProfilePhotoUrl;
+                mustChange = row.MustChangePassword;
+            }
         }
         catch (Exception)
         {
             photoUrl = null;
+            mustChange = false;
         }
 
         _logger.LogInformation(
@@ -70,8 +77,13 @@ public class MeController : ControllerBase
             StudentId = _currentUser.StudentId,
             StudentNumber = _currentUser.StudentNumber,
             StaffId = _currentUser.StaffId,
+            StaffNumber = _currentUser.StaffNumber,
             JobTitle = _currentUser.JobTitle,
+            DisplayName = string.IsNullOrWhiteSpace(_currentUser.DisplayName)
+                ? (_currentUser.Email ?? "")
+                : _currentUser.DisplayName,
             ProfilePhotoUrl = photoUrl,
+            MustChangePassword = mustChange,
         });
     }
 }
@@ -85,6 +97,11 @@ public class MeRecord
     public int? StudentId { get; set; }
     public string? StudentNumber { get; set; }
     public int? StaffId { get; set; }
+    public string? StaffNumber { get; set; }
     public string? JobTitle { get; set; }
+    public string DisplayName { get; set; } = "";
     public string? ProfilePhotoUrl { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("mustChangePassword")]
+    public bool MustChangePassword { get; set; }
 }

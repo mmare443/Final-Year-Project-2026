@@ -29,13 +29,47 @@ export const JOB_TITLES = {
   ACCOUNTS: "Accounts",
 };
 
+const MUST_CHANGE_KEY = "lcc_must_change_password";
+
+function readMustChange() {
+  return sessionStorage.getItem(MUST_CHANGE_KEY) === "1";
+}
+
+function writeMustChange(value) {
+  if (value) sessionStorage.setItem(MUST_CHANGE_KEY, "1");
+  else sessionStorage.removeItem(MUST_CHANGE_KEY);
+}
+
+export const ROLE_HOME = {
+  [ROLES.STUDENT]: "/student",
+  [ROLES.LECTURER]: "/lecturer",
+  [ROLES.HOD]: "/hod",
+  [ROLES.REGISTRAR_ADMIN]: "/registrar",
+  [ROLES.MANAGEMENT_PRINCIPAL]: "/management",
+};
+
+function readMustChangeFlag(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  if (Object.prototype.hasOwnProperty.call(obj, "mustChangePassword")) {
+    return !!obj.mustChangePassword;
+  }
+  if (Object.prototype.hasOwnProperty.call(obj, "MustChangePassword")) {
+    return !!obj.MustChangePassword;
+  }
+  return null;
+}
+
 const MockAuthContext = createContext(null);
 
 export function MockAuthProvider({ children }) {
   const [role, setRole] = useState(null);
   const [jobTitle, setJobTitle] = useState(null);
   const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [studentNumber, setStudentNumber] = useState("");
+  const [staffNumber, setStaffNumber] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [mustChangePassword, setMustChangePassword] = useState(readMustChange);
   const [ready, setReady] = useState(false);
   const avatarObjectUrlRef = useRef(null);
 
@@ -69,14 +103,30 @@ export function MockAuthProvider({ children }) {
   const applyMe = (me) => {
     setRole(me.role);
     setJobTitle(me.jobTitle ?? null);
-    setDisplayName(me.email || "");
+    setDisplayName(me.displayName || me.email || "");
+    setEmail(me.email || "");
+    setStudentNumber(me.studentNumber || "");
+    setStaffNumber(me.staffNumber || "");
+    const must = readMustChangeFlag(me);
+    if (must === true) {
+      setMustChangePassword(true);
+      writeMustChange(true);
+    } else if (must === false) {
+      setMustChangePassword(false);
+      writeMustChange(false);
+    }
   };
 
   const signOut = useCallback(() => {
     clearAccessToken();
+    writeMustChange(false);
+    setMustChangePassword(false);
     setRole(null);
     setJobTitle(null);
     setDisplayName("");
+    setEmail("");
+    setStudentNumber("");
+    setStaffNumber("");
     clearAvatar();
   }, [clearAvatar]);
 
@@ -94,7 +144,9 @@ export function MockAuthProvider({ children }) {
         const me = await res.json();
         if (!cancelled) {
           applyMe(me);
-          await loadProfilePhoto();
+          if (readMustChangeFlag(me) !== true && !readMustChange()) {
+            await loadProfilePhoto();
+          }
         }
       } catch {
         if (!cancelled) signOut();
@@ -121,18 +173,42 @@ export function MockAuthProvider({ children }) {
     }
     const data = await res.json();
     setAccessToken(data.token);
+    let must = readMustChangeFlag(data);
+    // Fail closed: a missing flag from an outdated API must not open the portal.
+    if (must === null) must = true;
+    setMustChangePassword(must);
+    writeMustChange(must);
 
     const meRes = await apiFetch(`${API_ORIGIN}/api/me`);
     if (meRes.ok) {
-      applyMe(await meRes.json());
-      await loadProfilePhoto();
+      const me = await meRes.json();
+      applyMe(me);
+      const meMust = readMustChangeFlag(me);
+      if (meMust === true) {
+        must = true;
+        setMustChangePassword(true);
+        writeMustChange(true);
+      }
+      if (!must) await loadProfilePhoto();
     } else {
       setRole(data.role);
-      setDisplayName(data.email || email);
+      setDisplayName(data.displayName || data.email || email);
+      setEmail(data.email || email);
       setJobTitle(null);
       clearAvatar();
     }
-    return data.role;
+    return { role: data.role, mustChangePassword: must };
+  };
+
+  const completePasswordChange = () => {
+    setMustChangePassword(false);
+    writeMustChange(false);
+  };
+
+  const refreshMe = async () => {
+    const res = await apiFetch(`${API_ORIGIN}/api/me`);
+    if (!res.ok) return;
+    applyMe(await res.json());
   };
 
   const uploadProfilePhoto = async (file) => {
@@ -160,10 +236,16 @@ export function MockAuthProvider({ children }) {
     role,
     jobTitle,
     displayName,
+    email,
+    studentNumber,
+    staffNumber,
     avatarUrl,
+    mustChangePassword,
     setAvatar,
     uploadProfilePhoto,
     loadProfilePhoto,
+    completePasswordChange,
+    refreshMe,
     login,
     signOut,
   };

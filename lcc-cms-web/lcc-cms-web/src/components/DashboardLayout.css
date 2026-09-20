@@ -18,7 +18,18 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 30px;
+  margin-bottom: 8px;
+}
+
+.dash-portal-name {
+  margin: 0 0 22px;
+  padding: 0 2px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #C9D3DF;
 }
 
 .dash-logo-img {
@@ -98,19 +109,69 @@
   justify-content: space-between;
   gap: 16px;
   background: var(--white);
-  padding: 18px 32px;
+  padding: 14px 32px;
   border-bottom: 1px solid #E7EBF0;
 }
 
-.dash-header .page-header {
-  flex: 1;
+.dash-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
+  flex: 1;
+}
+
+.dash-identity-photo {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid #E2E8F0;
+  background: var(--background);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-identity-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dash-identity-fallback {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.dash-identity-text {
+  min-width: 0;
+}
+
+.dash-identity-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--secondary);
+  line-height: 1.25;
+}
+
+.dash-identity-id {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light);
+  letter-spacing: 0.02em;
 }
 
 .dash-user {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex-shrink: 0;
 }
 
 .dash-user-info {
@@ -119,10 +180,14 @@
   align-items: flex-end;
 }
 
-.dash-user-name {
+.dash-user-email {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dash-user-role {
@@ -185,6 +250,23 @@
   flex: 1;
 }
 
+.dash-page-heading {
+  margin: 0 0 20px;
+}
+
+.dash-page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--secondary);
+}
+
+.dash-page-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
 .dash-contact-footer {
   margin: 0 32px 20px;
   font-size: 12px;
@@ -245,10 +327,34 @@
 @media (max-width: 720px) {
   .dash-header {
     flex-wrap: wrap;
+    align-items: flex-start;
     padding: 14px 18px;
   }
 
+  .dash-identity-photo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .dash-identity-name {
+    font-size: 16px;
+  }
+
   .dash-user {
-    margin-left: auto;
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+
+  .dash-user-info {
+    align-items: flex-start;
+  }
+
+  .dash-user-email {
+    max-width: 70vw;
+  }
+
+  .dash-content {
+    padding: 20px 18px;
   }
 }

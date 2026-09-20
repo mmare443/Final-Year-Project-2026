@@ -1106,6 +1106,9 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.ProfilePhotoUrl)
                 .HasMaxLength(500)
                 .HasColumnName("profile_photo_url");
+            entity.Property(e => e.MustChangePassword)
+                .HasDefaultValue(true)
+                .HasColumnName("must_change_password");
         });
 
         modelBuilder.Entity<WelfareCase>(entity =>

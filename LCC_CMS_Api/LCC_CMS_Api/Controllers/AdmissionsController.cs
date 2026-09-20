@@ -327,6 +327,7 @@ public class AdmissionsController : ControllerBase
                 ActivationToken = ActivationToken.Create(),
                 ActivationExpiresAt = ActivationToken.ExpiresAtUtc(),
                 ActivationUsed = false,
+                MustChangePassword = true,
             };
             _dbContext.Users.Add(user);
             await _dbContext.SaveChangesAsync(cancellationToken);

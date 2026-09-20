@@ -33,15 +33,18 @@ public class StudentsController : ControllerBase
     private readonly LccCmsDbContext _dbContext;
     private readonly ICurrentUser _currentUser;
     private readonly IFileStorage _fileStorage;
+    private readonly ILogger<StudentsController> _logger;
 
     public StudentsController(
         LccCmsDbContext dbContext,
         ICurrentUser currentUser,
-        IFileStorage fileStorage)
+        IFileStorage fileStorage,
+        ILogger<StudentsController> logger)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
         _fileStorage = fileStorage;
+        _logger = logger;
     }
 
     // --- Self-service (Student role) ---
@@ -52,7 +55,8 @@ public class StudentsController : ControllerBase
     {
         var loaded = await LoadCurrentStudentAsync(cancellationToken);
         if (loaded.Error is not null) return loaded.Error;
-        return Ok(ToProfile(loaded.Student!));
+        var emails = await LoadUserEmailsAsync(new[] { loaded.Student! }, cancellationToken);
+        return Ok(ToProfile(loaded.Student!, emails));
     }
 
     [Authorize(Policy = "StudentOnly")]
@@ -65,8 +69,11 @@ public class StudentsController : ControllerBase
         if (loaded.Error is not null) return loaded.Error;
 
         ApplyEdits(loaded.Student!, request);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return Ok(ToProfile(loaded.Student!));
+        var saveError = await SaveStudentProfileAsync(loaded.Student!, cancellationToken);
+        if (saveError is not null) return saveError;
+
+        var emails = await LoadUserEmailsAsync(new[] { loaded.Student! }, cancellationToken);
+        return Ok(ToProfile(loaded.Student!, emails));
     }
 
     [Authorize(Policy = "StudentOnly")]
@@ -83,8 +90,11 @@ public class StudentsController : ControllerBase
         if (saved.Error is not null) return BadRequest(saved.Error);
 
         UpsertProfilePhoto(loaded.Student!, saved.Path!, photo?.ContentType);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return Ok(ToProfile(loaded.Student!));
+        var saveError = await SaveStudentProfileAsync(loaded.Student!, cancellationToken);
+        if (saveError is not null) return saveError;
+
+        var emails = await LoadUserEmailsAsync(new[] { loaded.Student! }, cancellationToken);
+        return Ok(ToProfile(loaded.Student!, emails));
     }
 
     [Authorize(Policy = "StudentOnly")]
@@ -140,23 +150,27 @@ public class StudentsController : ControllerBase
             .AsNoTracking()
             .OrderBy(s => s.StudentNumber)
             .ToListAsync();
-        await HydrateUserEmailsAsync(students);
+        var emails = await LoadUserEmailsAsync(students);
 
-        return Ok(students.Select(ToProfile));
+        return Ok(students.Select(s => ToProfile(s, emails)));
     }
 
     [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPut("{id}")]
-    public async Task<ActionResult<StudentProfile>> CorrectProfile(string id, [FromBody] StudentProfileEditRequest request)
+    public async Task<ActionResult<StudentProfile>> CorrectProfile(
+        string id,
+        [FromBody] StudentProfileEditRequest request,
+        CancellationToken cancellationToken)
     {
         var student = await StudentGraph()
-            .FirstOrDefaultAsync(s => s.StudentNumber == id);
+            .FirstOrDefaultAsync(s => s.StudentNumber == id, cancellationToken);
         if (student is null) return NotFound();
-        await HydrateUserEmailsAsync(new[] { student });
-
         ApplyEdits(student, request);
-        await _dbContext.SaveChangesAsync();
-        return Ok(ToProfile(student));
+        var saveError = await SaveStudentProfileAsync(student, cancellationToken);
+        if (saveError is not null) return saveError;
+
+        var emails = await LoadUserEmailsAsync(new[] { student }, cancellationToken);
+        return Ok(ToProfile(student, emails));
     }
 
     private IQueryable<Student> StudentGraph()
@@ -192,35 +206,39 @@ public class StudentsController : ControllerBase
             return (null, NotFound());
         }
 
-        await HydrateUserEmailsAsync(new[] { student }, cancellationToken);
         return (student, null);
     }
 
-    private async Task HydrateUserEmailsAsync(
+    private async Task<Dictionary<int, string>> LoadUserEmailsAsync(
         IReadOnlyCollection<Student> students,
         CancellationToken cancellationToken = default)
     {
-        if (students.Count == 0) return;
+        if (students.Count == 0) return new Dictionary<int, string>();
 
         var ids = students.Select(s => s.StudentId).Distinct().ToList();
-        var emails = await _dbContext.Users
+        return await _dbContext.Users
             .AsNoTracking()
             .Where(u => ids.Contains(u.UserId))
-            .Select(u => new { u.UserId, u.Email })
-            .ToListAsync(cancellationToken);
-        var byId = emails.ToDictionary(u => u.UserId, u => u.Email);
+            .ToDictionaryAsync(u => u.UserId, u => u.Email, cancellationToken);
+    }
 
-        foreach (var student in students)
+    private async Task<ActionResult?> SaveStudentProfileAsync(Student student, CancellationToken cancellationToken)
+    {
+        try
         {
-            byId.TryGetValue(student.StudentId, out var email);
-            student.StudentNavigation = new User
-            {
-                UserId = student.StudentId,
-                Email = email ?? "",
-                EntraId = "",
-                Role = "Student",
-                Status = "Active",
-            };
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return null;
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to save student profile {StudentNumber}. SQL: {SqlError}",
+                student.StudentNumber,
+                ex.InnerException?.Message ?? ex.Message);
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new { error = "Couldn't save contact details. Please try again." });
         }
     }
 
@@ -341,7 +359,7 @@ public class StudentsController : ControllerBase
             enableRangeProcessing: true);
     }
 
-    private static StudentProfile ToProfile(Student student)
+    private static StudentProfile ToProfile(Student student, IReadOnlyDictionary<int, string>? emails = null)
     {
         var emergency = student.EmergencyContact ?? "";
         var pipe = emergency.IndexOf('|');
@@ -359,7 +377,9 @@ public class StudentsController : ControllerBase
             StudentNumber = student.StudentNumber,
             Id = student.StudentNumber,
             FullName = ResolveFullName(student),
-            Email = student.StudentNavigation?.Email ?? "",
+            Email = (emails != null && emails.TryGetValue(student.StudentId, out var email))
+                ? email
+                : (student.StudentNavigation?.Email ?? ""),
             Phone = student.Admission?.ApplicantPhone ?? "",
             Programme = student.Programme?.ProgrammeName ?? "",
             YearLevel = student.YearLevel,

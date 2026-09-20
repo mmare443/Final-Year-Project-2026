@@ -15,6 +15,7 @@ export default function StudentProfile() {
   const [photoError, setPhotoError] = useState(null);
   const [pendingPhoto, setPendingPhoto] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
+  const [editingContact, setEditingContact] = useState(false);
   const photoInputRef = useRef(null);
 
   useEffect(() => {
@@ -58,20 +59,32 @@ export default function StudentProfile() {
     setSaved(false);
   };
 
+  const handleSavePhoto = async () => {
+    if (!pendingPhoto) return;
+    setSaving(true);
+    setPhotoError(null);
+    try {
+      await uploadProfilePhoto(pendingPhoto);
+      if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+      setPendingPhoto(null);
+      setPendingPreview(null);
+      setSaved(true);
+    } catch (err) {
+      setPhotoError(err.message || "Couldn't save the photo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     setSaveError(null);
-    setPhotoError(null);
     try {
-      if (pendingPhoto) {
-        await uploadProfilePhoto(pendingPhoto);
-        if (pendingPreview) URL.revokeObjectURL(pendingPreview);
-        setPendingPhoto(null);
-        setPendingPreview(null);
-      }
       await updateMyProfile(form);
+      await fetchMyProfile();
       setSaved(true);
+      setEditingContact(false);
     } catch (err) {
       setSaveError(err.message || "Couldn't save — check the backend API is running.");
     } finally {
@@ -102,7 +115,12 @@ export default function StudentProfile() {
     <DashboardLayout title="My Profile" navItems={STUDENT_NAV}>
       <div className="profile-layout">
         <div className="profile-photo-card">
-          <button type="button" className="profile-photo-btn" onClick={() => photoInputRef.current?.click()}>
+          <button
+            type="button"
+            className="profile-photo-btn"
+            onClick={() => photoInputRef.current?.click()}
+            title="Select a new profile photo"
+          >
             {photoSrc ? (
               <img src={photoSrc} alt="Profile" className="profile-photo-img" />
             ) : initial ? (
@@ -118,12 +136,18 @@ export default function StudentProfile() {
             onChange={(e) => pickPhoto(e.target.files[0])}
             className="profile-photo-input"
           />
+          <p className="profile-photo-hint">Click the photo to choose a new image</p>
           <div className="profile-photo-actions">
             <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
               Change Photo
             </button>
-            <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
-              Upload Photo
+            <button
+              type="button"
+              className="profile-save-btn"
+              onClick={handleSavePhoto}
+              disabled={saving || !pendingPhoto}
+            >
+              {saving && pendingPhoto ? "Saving…" : "Save Photo"}
             </button>
           </div>
           {photoError && <div className="field-note field-error">{photoError}</div>}
@@ -164,37 +188,66 @@ export default function StudentProfile() {
 
           <h2 className="profile-section-heading">Contact &amp; Emergency Details</h2>
           {saveError && <div className="profile-error">{saveError}</div>}
-          <form onSubmit={handleSave} className="profile-form">
-            <label>
-              Phone Number
-              <input type="tel" name="phone" value={form.phone} onChange={handleChange} />
-            </label>
-            <label>
-              Postal Address
-              <input type="text" name="postalAddress" value={form.postalAddress} onChange={handleChange} />
-            </label>
-            <label>
-              Emergency Contact Name
-              <input
-                type="text" name="emergencyContactName"
-                value={form.emergencyContactName} onChange={handleChange}
-              />
-            </label>
-            <label>
-              Emergency Contact Phone
-              <input
-                type="tel" name="emergencyContactPhone"
-                value={form.emergencyContactPhone} onChange={handleChange}
-              />
-            </label>
+          {!editingContact ? (
+            <>
+              <div className="profile-readonly-grid">
+                <div>
+                  <span className="profile-readonly-label">Phone Number</span>
+                  <span className="profile-readonly-value">{form.phone || "—"}</span>
+                </div>
+                <div>
+                  <span className="profile-readonly-label">Postal Address</span>
+                  <span className="profile-readonly-value">{form.postalAddress || "—"}</span>
+                </div>
+                <div>
+                  <span className="profile-readonly-label">Emergency Contact Name</span>
+                  <span className="profile-readonly-value">{form.emergencyContactName || "—"}</span>
+                </div>
+                <div>
+                  <span className="profile-readonly-label">Emergency Contact Phone</span>
+                  <span className="profile-readonly-value">{form.emergencyContactPhone || "—"}</span>
+                </div>
+              </div>
+              <div className="profile-save-row">
+                <button type="button" className="profile-edit-btn" onClick={() => { setEditingContact(true); setSaved(false); }}>
+                  Edit Details
+                </button>
+                {saved && <span className="profile-saved-note">✓ Details saved successfully.</span>}
+              </div>
+            </>
+          ) : (
+            <form onSubmit={handleSave} className="profile-form">
+              <label>
+                Phone Number
+                <input type="tel" name="phone" value={form.phone || ""} onChange={handleChange} />
+              </label>
+              <label>
+                Postal Address
+                <input type="text" name="postalAddress" value={form.postalAddress || ""} onChange={handleChange} />
+              </label>
+              <label>
+                Emergency Contact Name
+                <input
+                  type="text" name="emergencyContactName"
+                  value={form.emergencyContactName || ""} onChange={handleChange}
+                />
+              </label>
+              <label>
+                Emergency Contact Phone
+                <input
+                  type="tel" name="emergencyContactPhone"
+                  value={form.emergencyContactPhone || ""} onChange={handleChange}
+                />
+              </label>
 
-            <div className="profile-save-row">
-              <button type="submit" className="profile-save-btn" disabled={saving}>
-                {saving ? "Saving…" : "Save Profile"}
-              </button>
-              {saved && <span className="profile-saved-note">Saved ✓</span>}
-            </div>
-          </form>
+              <div className="profile-save-row">
+                <button type="submit" className="profile-save-btn" disabled={saving}>
+                  {saving && !pendingPhoto ? "Saving…" : "Save"}
+                </button>
+                {saved && <span className="profile-saved-note">✓ Details saved successfully.</span>}
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </DashboardLayout>

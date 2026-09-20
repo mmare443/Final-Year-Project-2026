@@ -37,5 +37,7 @@ public partial class User
 
     public string? ProfilePhotoUrl { get; set; }
 
+    public bool MustChangePassword { get; set; } = true;
+
     public virtual Student? Student { get; set; }
 }

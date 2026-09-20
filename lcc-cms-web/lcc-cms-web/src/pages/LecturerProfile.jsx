@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { Briefcase, Building2, UserCircle } from "../components/ProfileIcons";
-import { API_ORIGIN, apiFetch } from "../api";
+import { API_ORIGIN, apiFetch, throwIfNotOk } from "../api";
 import { useMockAuth, avatarInitials } from "../context/MockAuthContext";
 import { LECTURER_NAV } from "./Attendance";
 import "./StudentRecords.css";
@@ -18,7 +18,7 @@ function roleLabel(me) {
 }
 
 export default function LecturerProfile() {
-  const { avatarUrl, uploadProfilePhoto, displayName } = useMockAuth();
+  const { avatarUrl, uploadProfilePhoto, displayName, refreshMe } = useMockAuth();
   const [me, setMe] = useState(null);
   const [staff, setStaff] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,6 +28,9 @@ export default function LecturerProfile() {
   const [pendingPreview, setPendingPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [editingContact, setEditingContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ fullName: "", employmentDetails: "" });
+  const [saveError, setSaveError] = useState(null);
   const photoInputRef = useRef(null);
 
   useEffect(() => {
@@ -42,7 +45,12 @@ export default function LecturerProfile() {
         if (record.staffId) {
           const staffRes = await apiFetch(`${API_ORIGIN}/api/staff/${record.staffId}`);
           if (staffRes.ok) {
-            setStaff(await staffRes.json());
+            const staffRecord = await staffRes.json();
+            setStaff(staffRecord);
+            setContactForm({
+              fullName: staffRecord.fullName || "",
+              employmentDetails: staffRecord.employmentDetails || "",
+            });
           }
         }
 
@@ -80,16 +88,15 @@ export default function LecturerProfile() {
     setSaved(false);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSavePhoto = async () => {
+    if (!pendingPhoto) return;
     setSaving(true);
     setPhotoError(null);
     try {
-      if (pendingPhoto) {
-        await uploadProfilePhoto(pendingPhoto);
-        if (pendingPreview) URL.revokeObjectURL(pendingPreview);
-        setPendingPhoto(null);
-        setPendingPreview(null);
-      }
+      await uploadProfilePhoto(pendingPhoto);
+      if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+      setPendingPhoto(null);
+      setPendingPreview(null);
       setSaved(true);
     } catch (err) {
       setPhotoError(err.message || "Couldn't save the profile photo.");
@@ -98,11 +105,34 @@ export default function LecturerProfile() {
     }
   };
 
+  const handleSaveContact = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await apiFetch(`${API_ORIGIN}/api/staff/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(contactForm),
+      });
+      await throwIfNotOk(res);
+      const updated = await res.json();
+      setStaff(updated);
+      setEditingContact(false);
+      setSaved(true);
+      if (refreshMe) await refreshMe();
+    } catch (err) {
+      setSaveError(err.message || "Couldn't save contact details.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const photoSrc = pendingPreview || avatarUrl;
-  const initial = avatarInitials(me?.email || displayName);
+  const initial = avatarInitials(staff?.fullName || me?.displayName || displayName);
 
   return (
-    <DashboardLayout title="Lecturer Profile" navItems={LECTURER_NAV}>
+    <DashboardLayout title="My Profile" navItems={LECTURER_NAV}>
       {apiError && <div className="records-error">{apiError}</div>}
       {isLoading && (
         <p style={{ color: "var(--text-light)", marginBottom: 18 }}>
@@ -113,7 +143,12 @@ export default function LecturerProfile() {
       {!isLoading && me && (
         <>
           <div className="profile-avatar">
-            <button type="button" className="profile-photo-btn" onClick={() => photoInputRef.current?.click()}>
+            <button
+              type="button"
+              className="profile-photo-btn"
+              onClick={() => photoInputRef.current?.click()}
+              title="Select a new profile photo"
+            >
               {photoSrc ? (
                 <img src={photoSrc} alt="Profile" className="profile-photo-img" />
               ) : initial ? (
@@ -129,20 +164,23 @@ export default function LecturerProfile() {
               onChange={(e) => pickPhoto(e.target.files[0])}
               className="profile-photo-input"
             />
+            <p className="profile-photo-hint">Click the photo to choose a new image</p>
             <div className="profile-photo-actions">
               <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
                 Change Photo
               </button>
-              <button type="button" className="profile-photo-action" onClick={() => photoInputRef.current?.click()}>
-                Upload Photo
-              </button>
-              <button type="button" className="profile-save-btn" onClick={handleSaveProfile} disabled={saving}>
-                {saving ? "Saving…" : "Save Profile"}
+              <button
+                type="button"
+                className="profile-save-btn"
+                onClick={handleSavePhoto}
+                disabled={saving || !pendingPhoto}
+              >
+                {saving && pendingPhoto ? "Saving…" : "Save Photo"}
               </button>
             </div>
             {photoError && <div className="records-error">{photoError}</div>}
-            {saved && <p className="profile-saved-note">Saved ✓</p>}
-            <p className="profile-avatar-caption">{displayOrDash(me.email)}</p>
+            {saved && !editingContact && <p className="profile-saved-note">✓ Details saved successfully.</p>}
+            <p className="profile-avatar-caption">{displayOrDash(staff?.fullName || me.displayName || me.email)}</p>
           </div>
 
           <div className="dash-card-grid">
@@ -175,7 +213,7 @@ export default function LecturerProfile() {
                 </div>
                 <div>
                   <dt>Staff ID</dt>
-                  <dd>{displayOrDash(me.staffId)}</dd>
+                  <dd>{displayOrDash(staff?.staffNumber || me.staffId)}</dd>
                 </div>
               </dl>
             </section>
@@ -197,6 +235,60 @@ export default function LecturerProfile() {
               </dl>
             </section>
           </div>
+
+          <section className="dash-card" style={{ marginTop: 18 }}>
+            <h3 className="profile-card-title">
+              <span>Contact Details</span>
+            </h3>
+            {saveError && <div className="records-error">{saveError}</div>}
+            {!editingContact ? (
+              <>
+                <dl className="profile-card-fields">
+                  <div>
+                    <dt>Full Name</dt>
+                    <dd>{displayOrDash(staff?.fullName)}</dd>
+                  </div>
+                  <div>
+                    <dt>Additional details</dt>
+                    <dd>{displayOrDash(staff?.employmentDetails)}</dd>
+                  </div>
+                </dl>
+                <div className="profile-save-row">
+                  <button type="button" className="profile-edit-btn" onClick={() => { setEditingContact(true); setSaved(false); }}>
+                    Edit Details
+                  </button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={handleSaveContact} className="profile-form">
+                <label>
+                  Full Name
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={contactForm.fullName}
+                    onChange={(e) => setContactForm({ ...contactForm, fullName: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Additional details
+                  <input
+                    type="text"
+                    name="employmentDetails"
+                    value={contactForm.employmentDetails}
+                    onChange={(e) => setContactForm({ ...contactForm, employmentDetails: e.target.value })}
+                  />
+                </label>
+                <div className="profile-save-row">
+                  <button type="submit" className="profile-save-btn" disabled={saving}>
+                    {saving && !pendingPhoto ? "Saving…" : "Save"}
+                  </button>
+                  {saved && <span className="profile-saved-note">✓ Details saved successfully.</span>}
+                </div>
+              </form>
+            )}
+          </section>
         </>
       )}
     </DashboardLayout>

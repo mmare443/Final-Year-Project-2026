@@ -1,38 +1,37 @@
-import { useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { useMockAuth, ROLE_LABELS, avatarInitials } from "../context/MockAuthContext";
+import { useMockAuth, ROLE_LABELS, ROLES, avatarInitials } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
 import { CONTACT } from "../config/contactConfig";
 import { isNavItemActive, resolveActiveNavPath } from "../nav/isNavActive";
 import lccLogo from "../assets/lcc-logo.png";
-import PageHeader from "./PageHeader";
 import "./DashboardLayout.css";
 
-/**
- * `navItems` accepts either a plain string (legacy — renders as an inert,
- * visibly-disabled placeholder, since that module isn't built yet) or an
- * object { label, path } once a real page exists for it. This lets each
- * dashboard's sidebar honestly distinguish "built, click me" from
- * "planned, not wired up yet" instead of every item looking equally dead.
- */
+function portalLabel(role) {
+  if (role === ROLES.STUDENT) return "Student Portal";
+  if (role === ROLES.LECTURER) return "Lecturer Portal";
+  if (role) return "Staff Portal";
+  return null;
+}
+
 export default function DashboardLayout({ title, subtitle, navItems = [], children }) {
-  const { role, displayName, avatarUrl, setAvatar, signOut } = useMockAuth();
+  const {
+    role,
+    displayName,
+    email,
+    studentNumber,
+    staffNumber,
+    avatarUrl,
+    signOut,
+  } = useMockAuth();
   const { pathname } = useLocation();
   const activePath = resolveActiveNavPath(navItems, pathname);
-  const avatarInputRef = useRef(null);
+  const portal = portalLabel(role);
+  const identityNumber = studentNumber || staffNumber || "";
+  const showPageTitle = Boolean(title) && title !== displayName;
 
   const handleSignOut = () => {
     signOut();
     window.location.href = PUBLIC_SITE_URL;
-  };
-
-  const handleAvatarClick = () => {
-    avatarInputRef.current?.click();
-  };
-
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) setAvatar(file);
   };
 
   return (
@@ -42,6 +41,7 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
           <img src={lccLogo} alt={CONTACT.institution} className="dash-logo-img" />
           <span className="dash-logo-text">LCC-CMS</span>
         </div>
+        {portal && <p className="dash-portal-name">{portal}</p>}
         <nav className="dash-nav">
           {navItems.map((item) => {
             const label = typeof item === "string" ? item : item.label;
@@ -76,42 +76,44 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
 
       <div className="dash-main">
         <header className="dash-header">
-          <PageHeader title={title} subtitle={subtitle} />
-          <div className="dash-user">
-            <div className="dash-user-info">
-              <span className="dash-user-name">{displayName}</span>
-              <span className="dash-user-role">{ROLE_LABELS[role]}</span>
-            </div>
-
-            <button
-              type="button"
-              className="dash-avatar"
-              onClick={handleAvatarClick}
-              title="Change profile photo"
-            >
+          <div className="dash-identity">
+            <div className="dash-identity-photo" aria-hidden={!avatarUrl}>
               {avatarUrl ? (
-                <img src={avatarUrl} alt="Your photo" className="dash-avatar-img" />
+                <img src={avatarUrl} alt="" className="dash-identity-img" />
               ) : (
-                <span className="dash-avatar-placeholder">
-                  {avatarInitials(displayName) || "＋"}
+                <span className="dash-identity-fallback">
+                  {avatarInitials(displayName) || "?"}
                 </span>
               )}
-            </button>
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/jpeg,image/png"
-              onChange={handleAvatarChange}
-              className="dash-avatar-input"
-            />
+            </div>
+            <div className="dash-identity-text">
+              <p className="dash-identity-name">{displayName || "—"}</p>
+              {identityNumber ? (
+                <p className="dash-identity-id">{identityNumber}</p>
+              ) : null}
+            </div>
+          </div>
 
+          <div className="dash-user">
+            <div className="dash-user-info">
+              <span className="dash-user-email">{email || displayName}</span>
+              <span className="dash-user-role">{ROLE_LABELS[role] || role}</span>
+            </div>
             <button className="dash-signout" onClick={handleSignOut}>
-              Sign out
+              Sign Out
             </button>
           </div>
         </header>
 
-        <main className="dash-content">{children}</main>
+        <main className="dash-content">
+          {showPageTitle ? (
+            <div className="dash-page-heading">
+              <h1 className="dash-page-title">{title}</h1>
+              {subtitle ? <p className="dash-page-subtitle">{subtitle}</p> : null}
+            </div>
+          ) : null}
+          {children}
+        </main>
         <p className="dash-contact-footer">
           {CONTACT.institution} · {CONTACT.phone} · {CONTACT.primaryEmail}
         </p>

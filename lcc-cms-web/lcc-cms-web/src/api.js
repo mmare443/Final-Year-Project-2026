@@ -40,19 +40,40 @@ export const API_UNREACHABLE =
 
 export async function readApiError(res) {
   const text = (await res.text().catch(() => "")).trim();
+  const fromJson = parseErrorMessage(text);
   if (res.status === 401) {
     return "Sign in required (401). Sign in again and retry.";
   }
   if (res.status === 403) {
-    return "You do not have permission for this request (403).";
+    return fromJson && fromJson !== "An error occurred."
+      ? fromJson
+      : "You do not have permission for this request (403).";
   }
   if (res.status === 404) {
     return "The requested API endpoint or record was not found (404).";
   }
   if (res.status >= 500) {
-    return text || `The server failed this request (${res.status}).`;
+    return fromJson && fromJson !== "An error occurred."
+      ? fromJson
+      : "Couldn't save. Please try again.";
   }
-  return text || `Request failed (${res.status}).`;
+  return fromJson || (text.startsWith("{") ? "Couldn't complete that request." : text) || `Request failed (${res.status}).`;
+}
+
+function parseErrorMessage(text) {
+  if (!text) return "";
+  try {
+    const obj = JSON.parse(text);
+    if (obj && typeof obj === "object") {
+      if (typeof obj.error === "string" && obj.error.trim()) return obj.error.trim();
+      if (typeof obj.message === "string" && obj.message.trim()) return obj.message.trim();
+      if (typeof obj.title === "string" && obj.title.trim()) return obj.title.trim();
+      return "";
+    }
+  } catch {
+    /* not JSON */
+  }
+  return text.startsWith("{") ? "" : text;
 }
 
 export async function throwIfNotOk(res, label) {

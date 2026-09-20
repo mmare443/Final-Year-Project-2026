@@ -42,7 +42,9 @@ public sealed class CurrentUserService : ICurrentUser
     public int? StudentId => _snapshot?.StudentId;
     public string? StudentNumber => _snapshot?.StudentNumber;
     public int? StaffId => _snapshot?.StaffId;
+    public string? StaffNumber => _snapshot?.StaffNumber;
     public string? JobTitle => _snapshot?.JobTitle;
+    public string? DisplayName => _snapshot?.DisplayName;
 
     public async Task<bool> ResolveAsync(CancellationToken cancellationToken = default)
     {
@@ -205,7 +207,9 @@ public sealed class CurrentUserService : ICurrentUser
                 u.Student != null ? u.Student.StudentId : (int?)null,
                 u.Student != null ? u.Student.StudentNumber : null,
                 u.Staff != null ? u.Staff.StaffId : (int?)null,
-                u.Staff != null ? u.Staff.JobTitle : null))
+                u.Staff != null ? u.Staff.StaffNumber : null,
+                u.Staff != null ? u.Staff.JobTitle : null,
+                u.Student != null ? u.Student.FullName : (u.Staff != null ? u.Staff.FullName : u.Email)))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -220,7 +224,9 @@ public sealed class CurrentUserService : ICurrentUser
                 u.Student != null ? u.Student.StudentId : (int?)null,
                 u.Student != null ? u.Student.StudentNumber : null,
                 u.Staff != null ? u.Staff.StaffId : (int?)null,
-                u.Staff != null ? u.Staff.JobTitle : null))
+                u.Staff != null ? u.Staff.StaffNumber : null,
+                u.Staff != null ? u.Staff.JobTitle : null,
+                u.Student != null ? u.Student.FullName : (u.Staff != null ? u.Staff.FullName : u.Email)))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -238,5 +244,7 @@ public sealed class CurrentUserService : ICurrentUser
         int? StudentId,
         string? StudentNumber,
         int? StaffId,
-        string? JobTitle);
+        string? StaffNumber,
+        string? JobTitle,
+        string DisplayName);
 }

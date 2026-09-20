@@ -116,6 +116,48 @@ public class StaffController : ControllerBase
         return Ok(ToRecord(staff));
     }
 
+    [Authorize]
+    [HttpPut("me")]
+    public async Task<ActionResult<StaffRecord>> UpdateMe(
+        [FromBody] StaffSelfUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.StaffId is null)
+        {
+            return Unauthorized();
+        }
+
+        var fullName = request.FullName?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return BadRequest("Full name is required.");
+        }
+
+        if (fullName.Length > 150)
+        {
+            return BadRequest("Full name must be 150 characters or fewer.");
+        }
+
+        var details = string.IsNullOrWhiteSpace(request.EmploymentDetails)
+            ? null
+            : request.EmploymentDetails.Trim();
+        if (details is { Length: > 500 })
+        {
+            return BadRequest("Contact details must be 500 characters or fewer.");
+        }
+
+        var staff = await StaffGraph()
+            .FirstOrDefaultAsync(s => s.StaffId == _currentUser.StaffId.Value, cancellationToken);
+        if (staff is null) return NotFound();
+
+        staff.FullName = fullName;
+        staff.EmploymentDetails = details;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await HydrateStaffUsersAsync(new[] { staff }, cancellationToken);
+        return Ok(ToRecord(staff));
+    }
+
     [Authorize(Policy = "RegistrarAdminOnly")]
     [HttpPost]
     public async Task<ActionResult<StaffRecord>> Create(
@@ -152,6 +194,7 @@ public class StaffController : ControllerBase
             Role = sqlRole,
             Status = "Active",
             CreatedAt = DateTime.UtcNow,
+            MustChangePassword = true,
         };
 
         if (!string.IsNullOrWhiteSpace(_jwtSettings.LabPassword))
@@ -561,6 +604,12 @@ public class StaffUpdateRequest
     public string? Status { get; set; }
     public int DepartmentId { get; set; }
     public string JobTitle { get; set; } = "";
+    public string? EmploymentDetails { get; set; }
+}
+
+public class StaffSelfUpdateRequest
+{
+    public string FullName { get; set; } = "";
     public string? EmploymentDetails { get; set; }
 }
 

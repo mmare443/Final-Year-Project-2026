@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Text.Json.Serialization;
 
 namespace LCC_CMS_Api.Controllers;
 
@@ -56,6 +57,7 @@ public class AuthController : ControllerBase
                 u.Status,
                 u.Role,
                 u.EntraId,
+                u.MustChangePassword,
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -89,13 +91,19 @@ public class AuthController : ControllerBase
         var token = _tokens.CreateToken(user, expires);
         var role = RoleNames.ToPolicyRole(user.Role);
 
+        var mustChange = row.MustChangePassword
+            || PasswordPolicy.EqualsTemporary(password, _jwtSettings.LabPassword);
+
         _logger.LogInformation(
-            "Login succeeded. UserId={UserId} Role={Role}",
+            "Login succeeded. UserId={UserId} Role={Role} MustChangePassword={MustChange}",
             user.UserId,
-            role);
+            role,
+            mustChange);
 
         return Ok(new LoginResponse
         {
+            LoginSuccess = true,
+            MustChangePassword = mustChange,
             Token = token,
             UserId = user.UserId,
             Email = user.Email,
@@ -119,14 +127,20 @@ public class AuthController : ControllerBase
             return BadRequest("Activation token is required.");
         }
 
-        if (password.Length < 8)
-        {
-            return BadRequest("Password must be at least 8 characters.");
-        }
-
         if (!string.Equals(password, confirm, StringComparison.Ordinal))
         {
             return BadRequest("Password and confirmation do not match.");
+        }
+
+        var policyError = PasswordPolicy.Validate(password);
+        if (policyError is not null)
+        {
+            return BadRequest(policyError);
+        }
+
+        if (PasswordPolicy.EqualsTemporary(password, _jwtSettings.LabPassword))
+        {
+            return BadRequest("Password cannot be the temporary laboratory password.");
         }
 
         var user = await _dbContext.Users
@@ -155,6 +169,7 @@ public class AuthController : ControllerBase
 
         user.PasswordHash = _passwordHasher.HashPassword(user, password);
         user.ActivationUsed = true;
+        user.MustChangePassword = false;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Account activated. UserId={UserId}", user.UserId);
@@ -176,6 +191,12 @@ public class LoginRequest
 
 public class LoginResponse
 {
+    [JsonPropertyName("loginSuccess")]
+    public bool LoginSuccess { get; set; }
+
+    [JsonPropertyName("mustChangePassword")]
+    public bool MustChangePassword { get; set; }
+
     public string Token { get; set; } = "";
     public int UserId { get; set; }
     public string Email { get; set; } = "";

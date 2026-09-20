@@ -239,6 +239,16 @@ app.UseExceptionHandler(errorApp =>
     errorApp.UseCors("SpaClient");
     errorApp.Run(async context =>
     {
+        var feature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
+        var logger = context.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("UnhandledException");
+        logger.LogError(
+            feature?.Error,
+            "Unhandled exception {Method} {Path}",
+            context.Request.Method,
+            context.Request.Path);
+
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsJsonAsync(new { error = "An error occurred." });
@@ -257,6 +267,8 @@ if (localJwtConfigured || azureAdConfigured)
 }
 
 app.UseAuthorization();
+
+app.UseMiddleware<LCC_CMS_Api.Services.MustChangePasswordMiddleware>();
 
 
 app.Use(async (context, next) =>

@@ -12,7 +12,9 @@ public interface ICurrentUser
     int? StudentId { get; }
     string? StudentNumber { get; }
     int? StaffId { get; }
+    string? StaffNumber { get; }
     string? JobTitle { get; }
+    string? DisplayName { get; }
 
     /// <summary>
     /// Loads identity for this request. Safe to call more than once.

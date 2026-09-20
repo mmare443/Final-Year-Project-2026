@@ -46,12 +46,14 @@ export function StudentsProvider({ children }) {
     const res = await apiFetch(`${API_BASE}/students/me`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(edits),
+      body: JSON.stringify({
+        phone: edits.phone ?? "",
+        postalAddress: edits.postalAddress ?? "",
+        emergencyContactName: edits.emergencyContactName ?? "",
+        emergencyContactPhone: edits.emergencyContactPhone ?? "",
+      }),
     });
-    if (!res.ok) {
-      const message = await res.text().catch(() => null);
-      throw new Error(message || `API returned ${res.status}`);
-    }
+    await throwIfNotOk(res);
     const updated = await res.json();
     setMyProfile(updated);
     return updated;

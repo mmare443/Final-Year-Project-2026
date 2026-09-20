@@ -1,19 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMockAuth, ROLES } from "../context/MockAuthContext";
+import { useMockAuth, ROLE_HOME } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
 import { CONTACT } from "../config/contactConfig";
 import CollegeContact from "../components/CollegeContact";
 import lccLogo from "../assets/lcc-logo.png";
 import "./Login.css";
 
-const ROLE_ROUTES = {
-  [ROLES.STUDENT]: "/student",
-  [ROLES.LECTURER]: "/lecturer",
-  [ROLES.HOD]: "/hod",
-  [ROLES.REGISTRAR_ADMIN]: "/registrar",
-  [ROLES.MANAGEMENT_PRINCIPAL]: "/management",
-};
+const ROLE_ROUTES = ROLE_HOME;
 
 export default function Login() {
   const { login } = useMockAuth();
@@ -28,8 +22,12 @@ export default function Login() {
     setError(null);
     setSubmitting(true);
     try {
-      const role = await login(email, password);
-      navigate(ROLE_ROUTES[role] || "/unauthorized");
+      const result = await login(email, password);
+      if (result.mustChangePassword !== false) {
+        navigate("/change-password", { replace: true });
+      } else {
+        navigate(ROLE_ROUTES[result.role] || "/unauthorized");
+      }
     } catch (err) {
       setError(err.message || "Sign in failed.");
     } finally {

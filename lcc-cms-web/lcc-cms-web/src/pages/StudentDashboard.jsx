@@ -42,7 +42,7 @@ export default function StudentDashboard() {
   }, [rates]);
 
   return (
-    <DashboardLayout title="Student Dashboard" navItems={STUDENT_NAV}>
+    <DashboardLayout navItems={STUDENT_NAV}>
       <div className="dash-card-grid">
         <div className="dash-card">
           <h3>Enrolled Courses</h3>

@@ -1,14 +1,8 @@
 import { Navigate } from "react-router-dom";
 import { useMockAuth } from "../context/MockAuthContext";
 
-/**
- * Guards a dashboard route. `allowedRole` mirrors what the real
- * [Authorize(Policy = "...Only")] policies will enforce on the backend
- * (see Backend & Frontend Scaffold Guide, Step 4) — this is the same
- * shape, just checked against mock state instead of a JWT for now.
- */
 export default function ProtectedRoute({ allowedRole, children }) {
-  const { isAuthenticated, role, ready } = useMockAuth();
+  const { isAuthenticated, role, ready, mustChangePassword } = useMockAuth();
 
   if (!ready) {
     return null;
@@ -16,6 +10,10 @@ export default function ProtectedRoute({ allowedRole, children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
   }
 
   if (role !== allowedRole) {

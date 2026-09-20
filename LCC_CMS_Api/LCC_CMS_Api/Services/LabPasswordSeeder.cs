@@ -33,7 +33,7 @@ public static class LabPasswordSeeder
         {
             logger.LogWarning(
                 ex,
-                "Could not seed lab passwords. Run Rev5 (password_hash) and Rev6 (activation columns) against LCCCMSDB.");
+                "Could not seed lab passwords. Run Rev5–Rev16 (password_hash, activation, must_change_password) against LCCCMSDB.");
             return;
         }
 
@@ -45,6 +45,7 @@ public static class LabPasswordSeeder
         foreach (var user in users)
         {
             user.PasswordHash = hasher.HashPassword(user, settings.LabPassword);
+            user.MustChangePassword = true;
         }
 
         await db.SaveChangesAsync();
