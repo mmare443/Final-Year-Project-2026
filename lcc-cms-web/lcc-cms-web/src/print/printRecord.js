@@ -102,6 +102,41 @@ export function buildRecordPrintHtml({
 </html>`;
 }
 
+export function staffProfilePrintFields(row) {
+  return [
+    ["Staff ID", row.staffNumber],
+    ["Full Name", row.fullName],
+    ["Portal Email", row.email],
+    ["Role", row.roleSql || row.role],
+    ["Job Title", row.jobTitle],
+    ["Department", row.departmentName],
+    ["Status", row.status],
+    ["Phone Number", row.phoneNumber],
+    ["Personal Email", row.personalEmail],
+    ["Postal Address", row.postalAddress],
+    ["Province", row.province],
+    ["District", row.district],
+    ["Village", row.village],
+    ["Emergency Contact Name", row.emergencyContactName],
+    ["Emergency Contact Phone", row.emergencyContactPhone],
+    ["Relationship", row.emergencyRelationship],
+  ];
+}
+
+export async function printStaffProfile(row, printedBy) {
+  const photoDataUrl = await fetchUserPhotoDataUrl(row.staffId ?? row.userId);
+  const html = buildRecordPrintHtml({
+    documentTitle: "Staff Profile Report",
+    photoDataUrl,
+    printedBy,
+    printedAt: printedAtLabel(),
+    fields: staffProfilePrintFields(row),
+    extraTitle: "Additional Staff Information",
+    extraText: row.employmentDetails,
+  });
+  printHtmlDocument(html);
+}
+
 export function printHtmlDocument(html) {
   const iframe = document.createElement("iframe");
   iframe.className = "record-print-frame";

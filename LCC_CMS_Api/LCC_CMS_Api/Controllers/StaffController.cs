@@ -117,6 +117,24 @@ public class StaffController : ControllerBase
     }
 
     [Authorize]
+    [HttpGet("me")]
+    public async Task<ActionResult<StaffRecord>> GetMe(CancellationToken cancellationToken)
+    {
+        if (!await _currentUser.ResolveAsync(cancellationToken) || _currentUser.StaffId is null)
+        {
+            return Unauthorized();
+        }
+
+        var staff = await StaffGraph()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.StaffId == _currentUser.StaffId.Value, cancellationToken);
+        if (staff is null) return NotFound();
+
+        await HydrateStaffUsersAsync(new[] { staff }, cancellationToken);
+        return Ok(ToRecord(staff));
+    }
+
+    [Authorize]
     [HttpPut("me")]
     public async Task<ActionResult<StaffRecord>> UpdateMe(
         [FromBody] StaffSelfUpdateRequest request,
@@ -127,32 +145,23 @@ public class StaffController : ControllerBase
             return Unauthorized();
         }
 
-        var fullName = request.FullName?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(fullName))
-        {
-            return BadRequest("Full name is required.");
-        }
-
-        if (fullName.Length > 150)
-        {
-            return BadRequest("Full name must be 150 characters or fewer.");
-        }
-
-        var details = string.IsNullOrWhiteSpace(request.EmploymentDetails)
-            ? null
-            : request.EmploymentDetails.Trim();
-        if (details is { Length: > 500 })
-        {
-            return BadRequest("Contact details must be 500 characters or fewer.");
-        }
+        var validation = ValidateSelfUpdate(request);
+        if (validation is not null) return validation;
 
         var staff = await StaffGraph()
             .FirstOrDefaultAsync(s => s.StaffId == _currentUser.StaffId.Value, cancellationToken);
         if (staff is null) return NotFound();
 
-        staff.FullName = fullName;
-        staff.EmploymentDetails = details;
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        ApplySelfUpdate(staff, request);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return WriteFailed(ex, "self-update");
+        }
 
         await HydrateStaffUsersAsync(new[] { staff }, cancellationToken);
         return Ok(ToRecord(staff));
@@ -523,6 +532,38 @@ public class StaffController : ControllerBase
         return null;
     }
 
+    private static ActionResult? ValidateSelfUpdate(StaffSelfUpdateRequest request)
+    {
+        var email = request.PersonalEmail?.Trim() ?? "";
+        if (email.Length > 0 && (email.Length > 255 || email.Contains(' ') || !email.Contains('@')
+            || email.IndexOf('@') == 0 || email.IndexOf('@') == email.Length - 1))
+        {
+            return new BadRequestObjectResult("Enter a valid personal email, or leave it blank.");
+        }
+
+        return null;
+    }
+
+    private static void ApplySelfUpdate(Staff staff, StaffSelfUpdateRequest request)
+    {
+        staff.PhoneNumber = TrimToNull(request.PhoneNumber, 30);
+        staff.PersonalEmail = TrimToNull(request.PersonalEmail, 255);
+        staff.PostalAddress = TrimToNull(request.PostalAddress, 500);
+        staff.Province = TrimToNull(request.Province, 100);
+        staff.District = TrimToNull(request.District, 100);
+        staff.Village = TrimToNull(request.Village, 100);
+        staff.EmergencyContactName = TrimToNull(request.EmergencyContactName, 150);
+        staff.EmergencyContactPhone = TrimToNull(request.EmergencyContactPhone, 30);
+        staff.EmergencyRelationship = TrimToNull(request.EmergencyRelationship, 100);
+    }
+
+    private static string? TrimToNull(string? value, int maxLength)
+    {
+        var trimmed = value?.Trim() ?? "";
+        if (trimmed.Length == 0) return null;
+        return trimmed.Length > maxLength ? trimmed[..maxLength] : trimmed;
+    }
+
     private ObjectResult WriteFailed(Exception ex, string operation)
     {
         var sql = FindSqlException(ex);
@@ -560,6 +601,15 @@ public class StaffController : ControllerBase
             Status = user.Status,
             JobTitle = staff.JobTitle,
             EmploymentDetails = staff.EmploymentDetails,
+            PhoneNumber = staff.PhoneNumber,
+            PersonalEmail = staff.PersonalEmail,
+            PostalAddress = staff.PostalAddress,
+            Province = staff.Province,
+            District = staff.District,
+            Village = staff.Village,
+            EmergencyContactName = staff.EmergencyContactName,
+            EmergencyContactPhone = staff.EmergencyContactPhone,
+            EmergencyRelationship = staff.EmergencyRelationship,
             DepartmentId = staff.DepartmentId,
             DepartmentName = department.DepartmentName,
             FacultyId = department.FacultyId,
@@ -580,6 +630,15 @@ public class StaffRecord
     public string Status { get; set; } = "";
     public string JobTitle { get; set; } = "";
     public string? EmploymentDetails { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? PersonalEmail { get; set; }
+    public string? PostalAddress { get; set; }
+    public string? Province { get; set; }
+    public string? District { get; set; }
+    public string? Village { get; set; }
+    public string? EmergencyContactName { get; set; }
+    public string? EmergencyContactPhone { get; set; }
+    public string? EmergencyRelationship { get; set; }
     public int DepartmentId { get; set; }
     public string DepartmentName { get; set; } = "";
     public int FacultyId { get; set; }
@@ -609,8 +668,15 @@ public class StaffUpdateRequest
 
 public class StaffSelfUpdateRequest
 {
-    public string FullName { get; set; } = "";
-    public string? EmploymentDetails { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? PersonalEmail { get; set; }
+    public string? PostalAddress { get; set; }
+    public string? Province { get; set; }
+    public string? District { get; set; }
+    public string? Village { get; set; }
+    public string? EmergencyContactName { get; set; }
+    public string? EmergencyContactPhone { get; set; }
+    public string? EmergencyRelationship { get; set; }
 }
 
 public class StaffWorkloadRecord

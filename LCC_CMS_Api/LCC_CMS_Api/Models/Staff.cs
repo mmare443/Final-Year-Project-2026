@@ -17,6 +17,24 @@ public partial class Staff
 
     public string? EmploymentDetails { get; set; }
 
+    public string? PhoneNumber { get; set; }
+
+    public string? PersonalEmail { get; set; }
+
+    public string? PostalAddress { get; set; }
+
+    public string? Province { get; set; }
+
+    public string? District { get; set; }
+
+    public string? Village { get; set; }
+
+    public string? EmergencyContactName { get; set; }
+
+    public string? EmergencyContactPhone { get; set; }
+
+    public string? EmergencyRelationship { get; set; }
+
     public virtual ICollection<AccommodationRecord> AccommodationRecords { get; set; } = new List<AccommodationRecord>();
 
     public virtual ICollection<Admission> Admissions { get; set; } = new List<Admission>();

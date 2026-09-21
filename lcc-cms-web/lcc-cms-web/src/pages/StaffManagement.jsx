@@ -4,12 +4,7 @@ import { useAcademicStructure } from "../context/AcademicStructureContext";
 import { useMockAuth } from "../context/MockAuthContext";
 import { API_ORIGIN, API_UNREACHABLE, apiFetch, isNetworkFailure, readApiError } from "../api";
 import { REGISTRAR_NAV } from "./registrarNav";
-import {
-  buildRecordPrintHtml,
-  fetchUserPhotoDataUrl,
-  printedAtLabel,
-  printHtmlDocument,
-} from "../print/printRecord";
+import { printStaffProfile } from "../print/printRecord";
 import "./AcademicStructure.css";
 import "./StudentRecords.css";
 import "./StaffManagement.css";
@@ -46,28 +41,6 @@ function staffPayload(form) {
     employmentDetails: form.employmentDetails || null,
     status: form.status,
   };
-}
-
-async function printStaffProfile(row, printedBy) {
-  const photoDataUrl = await fetchUserPhotoDataUrl(row.staffId ?? row.userId);
-  const html = buildRecordPrintHtml({
-    documentTitle: "Staff Profile Report",
-    photoDataUrl,
-    printedBy,
-    printedAt: printedAtLabel(),
-    fields: [
-      ["Staff ID", row.staffNumber],
-      ["Full Name", row.fullName],
-      ["Email", row.email],
-      ["Role", row.role],
-      ["Job Title", row.jobTitle],
-      ["Department", row.departmentName],
-      ["Status", row.status],
-    ],
-    extraTitle: "Additional Staff Information",
-    extraText: row.employmentDetails,
-  });
-  printHtmlDocument(html);
 }
 
 export default function StaffManagement() {

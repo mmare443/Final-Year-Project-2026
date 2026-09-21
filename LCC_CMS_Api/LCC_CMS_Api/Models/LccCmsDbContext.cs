@@ -955,6 +955,33 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.JobTitle)
                 .HasMaxLength(100)
                 .HasColumnName("job_title");
+            entity.Property(e => e.PhoneNumber)
+                .HasMaxLength(30)
+                .HasColumnName("phone_number");
+            entity.Property(e => e.PersonalEmail)
+                .HasMaxLength(255)
+                .HasColumnName("personal_email");
+            entity.Property(e => e.PostalAddress)
+                .HasMaxLength(500)
+                .HasColumnName("postal_address");
+            entity.Property(e => e.Province)
+                .HasMaxLength(100)
+                .HasColumnName("province");
+            entity.Property(e => e.District)
+                .HasMaxLength(100)
+                .HasColumnName("district");
+            entity.Property(e => e.Village)
+                .HasMaxLength(100)
+                .HasColumnName("village");
+            entity.Property(e => e.EmergencyContactName)
+                .HasMaxLength(150)
+                .HasColumnName("emergency_contact_name");
+            entity.Property(e => e.EmergencyContactPhone)
+                .HasMaxLength(30)
+                .HasColumnName("emergency_contact_phone");
+            entity.Property(e => e.EmergencyRelationship)
+                .HasMaxLength(100)
+                .HasColumnName("emergency_relationship");
 
             entity.HasOne(d => d.Department).WithMany(p => p.Staff)
                 .HasForeignKey(d => d.DepartmentId)

@@ -118,6 +118,15 @@ CREATE TABLE staff (
     department_id       INT             NOT NULL REFERENCES departments(department_id),
     job_title           NVARCHAR(100)   NOT NULL,
     employment_details  NVARCHAR(500)   NULL,
+    phone_number        NVARCHAR(30)    NULL,
+    personal_email      NVARCHAR(255)   NULL,
+    postal_address      NVARCHAR(500)   NULL,
+    province            NVARCHAR(100)   NULL,
+    district            NVARCHAR(100)   NULL,
+    village             NVARCHAR(100)   NULL,
+    emergency_contact_name  NVARCHAR(150) NULL,
+    emergency_contact_phone NVARCHAR(30)  NULL,
+    emergency_relationship  NVARCHAR(100) NULL,
     CONSTRAINT UQ_staff_staff_number UNIQUE (staff_number),
     CONSTRAINT CK_staff_staff_number CHECK (staff_number LIKE N'STF-[0-9][0-9][0-9][0-9]-[0-9][0-9][0-9]')
 );
