@@ -353,11 +353,38 @@ CREATE TABLE notices (
     author_id    INT NOT NULL REFERENCES staff(staff_id),
     title        NVARCHAR(150) NOT NULL,
     content      NVARCHAR(MAX) NOT NULL,
-    target_role  NVARCHAR(30) NULL
-        CHECK (target_role IS NULL OR target_role IN ('Student','Lecturer','HoD','Registrar/Admin','Management/Principal')),
+    target_role  NVARCHAR(30) NULL,
+    audience     NVARCHAR(20) NOT NULL
+        CHECK (audience IN ('Public','Staff','Students','Everyone')),
+    start_date   DATE NULL,
+    end_date     DATE NULL,
+    priority     NVARCHAR(20) NOT NULL DEFAULT 'Normal'
+        CHECK (priority IN ('Normal','High','Urgent')),
+    is_archived  BIT NOT NULL DEFAULT 0,
+    archived_at  DATETIME2 NULL,
     posted_at    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 CREATE INDEX IX_notices_posted_at ON notices(posted_at);
+CREATE INDEX IX_notices_feed ON notices(is_archived, audience, start_date, end_date, priority);
+
+CREATE TABLE announcements (
+    announcement_id INT IDENTITY(1,1) PRIMARY KEY,
+    title           NVARCHAR(150) NOT NULL,
+    content         NVARCHAR(MAX) NOT NULL,
+    audience        NVARCHAR(20)  NOT NULL
+        CHECK (audience IN ('PUBLIC','STUDENT','STAFF','EVERYONE')),
+    start_date      DATE NULL,
+    end_date        DATE NULL,
+    priority        NVARCHAR(20) NOT NULL DEFAULT 'Normal'
+        CHECK (priority IN ('Normal','High','Urgent')),
+    is_published    BIT NOT NULL DEFAULT 0,
+    is_archived     BIT NOT NULL DEFAULT 0,
+    archived_at     DATETIME2 NULL,
+    created_by      INT NOT NULL REFERENCES staff(staff_id),
+    created_at      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at      DATETIME2 NULL
+);
+CREATE INDEX IX_announcements_feed ON announcements (is_published, is_archived, audience, start_date, end_date, priority);
 
 CREATE TABLE messages (
     message_id    INT IDENTITY(1,1) PRIMARY KEY,

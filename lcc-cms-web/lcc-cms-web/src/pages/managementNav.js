@@ -7,7 +7,7 @@ export const MANAGEMENT_NAV = [
   { label: "Institution Reports", path: "/management/reports" },
   { label: "Enrolment Analytics", path: "/management/enrolment" },
   { label: "Staff Overview", path: "/management/staff" },
-  { label: "Announcements", path: "/management/announcements" },
+  { label: "Announcement Management", path: "/management/announcements" },
   { label: "News Management", path: "/management/news" },
   { label: "Profile", path: "/management/profile" },
 ];

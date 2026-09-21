@@ -196,6 +196,19 @@
   font-weight: 600;
 }
 
+.dash-announce-badge {
+  margin-top: 4px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9B1C1C;
+  background: #FDECEC;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 .dash-signout {
   background: none;
   border: 1px solid #E2E8F0;

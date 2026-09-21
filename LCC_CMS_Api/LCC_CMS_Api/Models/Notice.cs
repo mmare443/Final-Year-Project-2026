@@ -15,6 +15,18 @@ public partial class Notice
 
     public string? TargetRole { get; set; }
 
+    public string Audience { get; set; } = "Everyone";
+
+    public DateOnly? StartDate { get; set; }
+
+    public DateOnly? EndDate { get; set; }
+
+    public string Priority { get; set; } = "Normal";
+
+    public bool IsArchived { get; set; }
+
+    public DateTime? ArchivedAt { get; set; }
+
     public DateTime PostedAt { get; set; }
 
     public virtual Staff Author { get; set; } = null!;

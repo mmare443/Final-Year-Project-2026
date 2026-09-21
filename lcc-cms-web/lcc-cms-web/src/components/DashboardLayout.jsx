@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useMockAuth, ROLE_LABELS, ROLES, avatarInitials } from "../context/MockAuthContext";
+import { unseenAnnouncementCount, useAnnouncementFeed } from "../hooks/useAnnouncementFeed";
 import { PUBLIC_SITE_URL } from "../config";
 import { CONTACT } from "../config/contactConfig";
 import { isNavItemActive, resolveActiveNavPath } from "../nav/isNavActive";
@@ -28,6 +29,8 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
   const portal = portalLabel(role);
   const identityNumber = studentNumber || staffNumber || "";
   const showPageTitle = Boolean(title) && title !== displayName;
+  const { items: announcementItems } = useAnnouncementFeed();
+  const newAnnouncementCount = unseenAnnouncementCount(announcementItems, email);
 
   const handleSignOut = () => {
     signOut();
@@ -98,6 +101,9 @@ export default function DashboardLayout({ title, subtitle, navItems = [], childr
             <div className="dash-user-info">
               <span className="dash-user-email">{email || displayName}</span>
               <span className="dash-user-role">{ROLE_LABELS[role] || role}</span>
+              {newAnnouncementCount > 0 ? (
+                <span className="dash-announce-badge">New Announcement</span>
+              ) : null}
             </div>
             <button className="dash-signout" onClick={handleSignOut}>
               Sign Out

@@ -5,6 +5,7 @@ import { useAttendance } from "../context/AttendanceContext";
 import { API_ORIGIN, apiFetch } from "../api";
 import { HOD_NAV } from "./hodNav";
 import { loadHodDepartment, rowId } from "./hodScope";
+import AnnouncementWidget from "../components/AnnouncementWidget";
 import "./StudentRecords.css";
 
 export default function HoDDashboard() {
@@ -92,6 +93,7 @@ export default function HoDDashboard() {
           <div className="dash-card-value">{pendingCount == null ? "—" : pendingCount}</div>
         </div>
       </div>
+      <AnnouncementWidget />
     </DashboardLayout>
   );
 }

@@ -55,6 +55,8 @@ public partial class LccCmsDbContext : DbContext
 
     public virtual DbSet<Message> Messages { get; set; }
 
+    public virtual DbSet<Announcement> Announcements { get; set; }
+
     public virtual DbSet<NewsArticle> NewsArticles { get; set; }
 
     public virtual DbSet<Notice> Notices { get; set; }
@@ -689,6 +691,30 @@ public partial class LccCmsDbContext : DbContext
                 .HasConstraintName("FK__messages__sender__498EEC8D");
         });
 
+        modelBuilder.Entity<Announcement>(entity =>
+        {
+            entity.HasKey(e => e.AnnouncementId).HasName("PK_announcements");
+            entity.ToTable("announcements");
+            entity.HasIndex(e => new { e.IsPublished, e.IsArchived, e.Audience, e.StartDate, e.EndDate, e.Priority }, "IX_announcements_feed");
+            entity.Property(e => e.AnnouncementId).HasColumnName("announcement_id");
+            entity.Property(e => e.Title).HasMaxLength(150).HasColumnName("title");
+            entity.Property(e => e.Content).HasColumnName("content");
+            entity.Property(e => e.Audience).HasMaxLength(20).HasColumnName("audience");
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.EndDate).HasColumnName("end_date");
+            entity.Property(e => e.Priority).HasMaxLength(20).HasDefaultValue("Normal").HasColumnName("priority");
+            entity.Property(e => e.IsPublished).HasDefaultValue(false).HasColumnName("is_published");
+            entity.Property(e => e.IsArchived).HasDefaultValue(false).HasColumnName("is_archived");
+            entity.Property(e => e.ArchivedAt).HasColumnName("archived_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())").HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.Announcements)
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_announcements_created_by");
+        });
+
         modelBuilder.Entity<Notice>(entity =>
         {
             entity.HasKey(e => e.NoticeId).HasName("PK__notices__3E82A5DBCAFD2DA8");
@@ -696,6 +722,7 @@ public partial class LccCmsDbContext : DbContext
             entity.ToTable("notices");
 
             entity.HasIndex(e => e.PostedAt, "IX_notices_posted_at");
+            entity.HasIndex(e => new { e.IsArchived, e.Audience, e.StartDate, e.EndDate, e.Priority }, "IX_notices_feed");
 
             entity.Property(e => e.NoticeId).HasColumnName("notice_id");
             entity.Property(e => e.AuthorId).HasColumnName("author_id");
@@ -706,6 +733,19 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.TargetRole)
                 .HasMaxLength(30)
                 .HasColumnName("target_role");
+            entity.Property(e => e.Audience)
+                .HasMaxLength(20)
+                .HasColumnName("audience");
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.EndDate).HasColumnName("end_date");
+            entity.Property(e => e.Priority)
+                .HasMaxLength(20)
+                .HasDefaultValue("Normal")
+                .HasColumnName("priority");
+            entity.Property(e => e.IsArchived)
+                .HasDefaultValue(false)
+                .HasColumnName("is_archived");
+            entity.Property(e => e.ArchivedAt).HasColumnName("archived_at");
             entity.Property(e => e.Title)
                 .HasMaxLength(150)
                 .HasColumnName("title");

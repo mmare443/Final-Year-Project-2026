@@ -2,6 +2,7 @@ import DashboardLayout from "../components/DashboardLayout";
 import { useMockData } from "../context/MockDataContext";
 import { useMockAuth, JOB_TITLES } from "../context/MockAuthContext";
 import { REGISTRAR_NAV } from "./registrarNav";
+import AnnouncementWidget from "../components/AnnouncementWidget";
 
 /**
  * Job-title-based dashboard variants — UI only. Every job title here
@@ -126,6 +127,7 @@ export default function RegistrarAdminDashboard() {
           Overview for {effectiveTitle}.
         </p>
       )}
+      <AnnouncementWidget />
     </DashboardLayout>
   );
 }

@@ -4,6 +4,7 @@ import { useAcademicStructure } from "../context/AcademicStructureContext";
 import { useAttendance } from "../context/AttendanceContext";
 import { useLearning } from "../context/LearningContext";
 import { LECTURER_NAV } from "./Attendance";
+import AnnouncementWidget from "../components/AnnouncementWidget";
 
 export default function LecturerDashboard() {
   const { courseAllocations, fetchAll } = useAcademicStructure();
@@ -42,6 +43,7 @@ export default function LecturerDashboard() {
       <p style={{ marginTop: 24, color: "var(--text-light)", fontSize: 13 }}>
         Attendance (M5) and assignments (M6) are live. Assessment/results publication is M7.
       </p>
+      <AnnouncementWidget />
     </DashboardLayout>
   );
 }

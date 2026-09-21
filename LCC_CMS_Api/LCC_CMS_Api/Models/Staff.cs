@@ -51,6 +51,8 @@ public partial class Staff
 
     public virtual ICollection<Notice> Notices { get; set; } = new List<Notice>();
 
+    public virtual ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
+
     public virtual ICollection<ReadmissionRecord> ReadmissionRecords { get; set; } = new List<ReadmissionRecord>();
 
     public virtual ICollection<Registration> Registrations { get; set; } = new List<Registration>();

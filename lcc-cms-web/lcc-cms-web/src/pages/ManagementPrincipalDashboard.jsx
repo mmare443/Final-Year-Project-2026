@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { API_ORIGIN, apiFetch } from "../api";
 import { MANAGEMENT_NAV } from "./managementNav";
+import AnnouncementWidget from "../components/AnnouncementWidget";
 import "./StudentRecords.css";
 
 const KPI = [
@@ -61,6 +62,7 @@ export default function ManagementPrincipalDashboard() {
         Executive snapshot from enrolled students, staff, academic structure,
         active hostel allocations, and open welfare cases.
       </p>
+      <AnnouncementWidget />
     </DashboardLayout>
   );
 }

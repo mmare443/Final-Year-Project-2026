@@ -5,6 +5,7 @@ import { useAttendance } from "../context/AttendanceContext";
 import { useLearning } from "../context/LearningContext";
 import { API_ORIGIN, apiFetch } from "../api";
 import { STUDENT_NAV } from "./Attendance";
+import AnnouncementWidget from "../components/AnnouncementWidget";
 
 export default function StudentDashboard() {
   const { myProfile, fetchMyProfile } = useStudents();
@@ -64,6 +65,7 @@ export default function StudentDashboard() {
       <p style={{ marginTop: 24, color: "var(--text-light)", fontSize: 13 }}>
         Attendance, assignments, courses, and published results are live.
       </p>
+      <AnnouncementWidget />
     </DashboardLayout>
   );
 }

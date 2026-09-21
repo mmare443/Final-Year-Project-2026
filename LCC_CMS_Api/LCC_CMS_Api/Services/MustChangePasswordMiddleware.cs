@@ -68,7 +68,10 @@ public sealed class MustChangePasswordMiddleware
         if (path.StartsWithSegments("/api/me")
             || path.StartsWithSegments("/api/auth")
             || path.StartsWithSegments("/api/health")
-            || path.StartsWithSegments("/api/contact"))
+            || path.StartsWithSegments("/api/contact")
+            || path.StartsWithSegments("/api/notices/public")
+            || path.StartsWithSegments("/api/announcements/public")
+            || path.StartsWithSegments("/api/announcements/portal"))
         {
             return false;
         }
