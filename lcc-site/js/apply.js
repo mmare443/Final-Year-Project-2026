@@ -1,4 +1,3 @@
-const API_ORIGIN = "http://localhost:5000";
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 function byId(id) {

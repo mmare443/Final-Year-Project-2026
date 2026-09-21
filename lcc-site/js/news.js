@@ -1,4 +1,3 @@
-const API_ORIGIN = "http://localhost:5000";
 const DEFAULT_NEWS_IMAGE = "images/college/news/default-news.jpg";
 const SOURCE_LOGO_ROOT = "images/college/news/logos/";
 

@@ -1,5 +1,3 @@
-const API_ORIGIN = "http://localhost:5000";
-
 function byId(id) {
     return document.getElementById(id);
 }
