@@ -9,6 +9,8 @@ import { LearningProvider } from "./context/LearningContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
 import Admissions from "./pages/Admissions";
 import Activate from "./pages/Activate";
@@ -57,6 +59,8 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/login" replace />} />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/change-password" element={<ChangePassword />} />
                   <Route path="/activate" element={<Activate />} />
                   <Route path="/apply" element={<Apply />} />

@@ -1142,6 +1142,10 @@ public partial class LccCmsDbContext : DbContext
                 .IsUnique()
                 .HasFilter("[activation_token] IS NOT NULL");
 
+            entity.HasIndex(e => e.PasswordResetToken, "UX_users_password_reset_token")
+                .IsUnique()
+                .HasFilter("[password_reset_token] IS NOT NULL");
+
             entity.Property(e => e.UserId).HasColumnName("user_id");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(sysutcdatetime())")
@@ -1176,6 +1180,11 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.MustChangePassword)
                 .HasDefaultValue(true)
                 .HasColumnName("must_change_password");
+            entity.Property(e => e.PasswordResetToken)
+                .HasMaxLength(200)
+                .HasColumnName("password_reset_token");
+            entity.Property(e => e.PasswordResetExpiresAt)
+                .HasColumnName("password_reset_expires_at");
         });
 
         modelBuilder.Entity<WelfareCase>(entity =>

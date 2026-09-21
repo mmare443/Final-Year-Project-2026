@@ -69,9 +69,14 @@ CREATE TABLE users (
         CHECK (role IN ('Student','Lecturer','HoD','Registrar/Admin','Management/Principal')),
     status          NVARCHAR(20)    NOT NULL DEFAULT 'Active'
         CHECK (status IN ('Active','Inactive')),
-    created_at      DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME()
-);
-CREATE INDEX IX_users_role ON users(role);
+        created_at      DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+        password_reset_token       NVARCHAR(200) NULL,
+        password_reset_expires_at  DATETIME2 NULL
+    );
+    CREATE INDEX IX_users_role ON users(role);
+    CREATE UNIQUE INDEX UX_users_password_reset_token
+        ON users (password_reset_token)
+        WHERE password_reset_token IS NOT NULL;
 
 -- -------------------------------------------------------------------------
 -- 3. Accommodation (hostels/rooms created before students reference them)

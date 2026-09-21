@@ -79,6 +79,21 @@
   margin: 4px 0 0;
 }
 
+.login-success {
+  color: #166534;
+  font-size: 13px;
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.forgot-link {
+  display: inline-block;
+  margin: -8px 0 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
 .login-submit {
   margin-top: 12px;
   border: none;

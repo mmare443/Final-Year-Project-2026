@@ -39,5 +39,9 @@ public partial class User
 
     public bool MustChangePassword { get; set; } = true;
 
+    public string? PasswordResetToken { get; set; }
+
+    public DateTime? PasswordResetExpiresAt { get; set; }
+
     public virtual Student? Student { get; set; }
 }

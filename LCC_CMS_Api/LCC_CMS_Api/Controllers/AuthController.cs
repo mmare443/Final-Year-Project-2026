@@ -17,6 +17,8 @@ public class AuthController : ControllerBase
     private readonly JwtTokenService _tokens;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtSettings _jwtSettings;
+    private readonly PortalSettings _portal;
+    private readonly bool _authEnabled;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -24,12 +26,16 @@ public class AuthController : ControllerBase
         JwtTokenService tokens,
         IPasswordHasher<User> passwordHasher,
         IOptions<JwtSettings> jwtSettings,
+        IOptions<PortalSettings> portal,
+        IConfiguration configuration,
         ILogger<AuthController> logger)
     {
         _dbContext = dbContext;
         _tokens = tokens;
         _passwordHasher = passwordHasher;
         _jwtSettings = jwtSettings.Value;
+        _portal = portal.Value;
+        _authEnabled = configuration.GetValue("AuthEnabled", false);
         _logger = logger;
     }
 
@@ -181,6 +187,114 @@ public class AuthController : ControllerBase
             Email = user.Email,
         });
     }
+
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var email = request.Email?.Trim() ?? "";
+        string? resetLink = null;
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var user = await _dbContext.Users
+                .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+
+            if (user is not null
+                && string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(user.PasswordHash))
+            {
+                var token = PasswordReset.CreateToken();
+                user.PasswordResetToken = token;
+                user.PasswordResetExpiresAt = PasswordReset.ExpiresAtUtc();
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                resetLink = PasswordReset.ResetLink(_portal.ResetPasswordBaseUrl, token);
+                _logger.LogInformation("Password reset issued. UserId={UserId}", user.UserId);
+            }
+            else
+            {
+                _logger.LogInformation("Password reset requested for unknown or inactive email.");
+            }
+        }
+
+        return Ok(new ForgotPasswordResponse
+        {
+            Success = true,
+            Message = "If an account exists for that email, a password reset link has been issued. It expires in 60 minutes.",
+            ResetLink = _authEnabled ? null : resetLink,
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    public async Task<ActionResult<ResetPasswordResponse>> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var token = request.Token?.Trim() ?? "";
+        var newPassword = request.NewPassword ?? "";
+        var confirmPassword = request.ConfirmPassword ?? "";
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return BadRequest("Reset token is required.");
+        }
+
+        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+        {
+            return BadRequest("New password and confirmation do not match.");
+        }
+
+        var policyError = PasswordPolicy.Validate(newPassword);
+        if (policyError is not null)
+        {
+            return BadRequest(policyError);
+        }
+
+        if (PasswordPolicy.EqualsTemporary(newPassword, _jwtSettings.LabPassword))
+        {
+            return BadRequest("New password cannot be the temporary laboratory password.");
+        }
+
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.PasswordResetToken == token, cancellationToken);
+
+        if (user is null)
+        {
+            return BadRequest("This reset link is not valid.");
+        }
+
+        if (user.PasswordResetExpiresAt is null
+            || user.PasswordResetExpiresAt.Value <= DateTime.UtcNow)
+        {
+            user.PasswordResetToken = null;
+            user.PasswordResetExpiresAt = null;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return BadRequest("This reset link has expired.");
+        }
+
+        if (!string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("This account cannot be reset.");
+        }
+
+        user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
+        user.MustChangePassword = false;
+        user.PasswordResetToken = null;
+        user.PasswordResetExpiresAt = null;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Password reset completed. UserId={UserId}", user.UserId);
+
+        return Ok(new ResetPasswordResponse
+        {
+            Success = true,
+            Message = "Password updated. You can now sign in.",
+            Email = user.Email,
+        });
+    }
 }
 
 public class LoginRequest
@@ -212,6 +326,32 @@ public class ActivateRequest
 }
 
 public class ActivateResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public string Email { get; set; } = "";
+}
+
+public class ForgotPasswordRequest
+{
+    public string Email { get; set; } = "";
+}
+
+public class ForgotPasswordResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public string? ResetLink { get; set; }
+}
+
+public class ResetPasswordRequest
+{
+    public string Token { get; set; } = "";
+    public string NewPassword { get; set; } = "";
+    public string ConfirmPassword { get; set; } = "";
+}
+
+public class ResetPasswordResponse
 {
     public bool Success { get; set; }
     public string Message { get; set; } = "";

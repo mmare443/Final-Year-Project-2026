@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMockAuth, ROLE_HOME } from "../context/MockAuthContext";
 import { PUBLIC_SITE_URL } from "../config";
 import { CONTACT } from "../config/contactConfig";
@@ -80,6 +80,8 @@ export default function Login() {
             {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <Link to="/forgot-password" className="forgot-link">Forgot Password?</Link>
 
         <a href={PUBLIC_SITE_URL} className="back-link">← Return to LCC website</a>
         <CollegeContact />
