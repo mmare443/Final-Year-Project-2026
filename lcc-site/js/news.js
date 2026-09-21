@@ -206,7 +206,7 @@ async function fetchNewsArticle(id) {
     return normalizeArticle(await res.json());
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+async function bootNews() {
     const status = byId("news-status");
     const root = byId("news-root");
     const homeRoot = byId("home-news-root");
@@ -268,4 +268,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         console.error("News render failed", err);
     }
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootNews);
+} else {
+    bootNews();
+}

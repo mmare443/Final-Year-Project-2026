@@ -19,7 +19,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=announce-1">
+    <link rel="stylesheet" href="css/style.css?v=announce-3">
     <link rel="stylesheet" href="css/header.css?v=brand-2">
     <link rel="stylesheet" href="css/hero.css">
 
@@ -283,44 +283,35 @@
             </div>
         </section>
 
-        <!-- ========================= ANNOUNCEMENTS ========================= -->
-        <section class="section announce-preview"
-                 aria-labelledby="announce-title">
-            <div class="container">
-                <div class="section-heading">
-                    <span class="section-eyebrow">ANNOUNCEMENTS</span>
-                    <h2 id="announce-title">College notices</h2>
-                </div>
-                <p id="home-announce-status" class="programmes-status">
-                    Loading announcements…
-                </p>
-                <div id="home-announce-root" class="card-grid announce-grid"></div>
-            </div>
-        </section>
-
-        <!-- ========================= NEWS ========================= -->
+        <!-- ========================= ANNOUNCEMENTS + NEWS ========================= -->
         <section class="section news-preview"
+                 id="news-and-announcements"
                  aria-labelledby="news-title">
-
             <div class="container">
-
-                <div class="section-heading">
-                    <span class="section-eyebrow">NEWS</span>
-
-                    <h2 id="news-title">
-                        Latest from LCC
-                    </h2>
+                <div class="news-split">
+                    <aside class="news-split-announce" aria-labelledby="announce-title">
+                        <div class="section-heading">
+                            <span class="section-eyebrow">ANNOUNCEMENTS</span>
+                            <h2 id="announce-title">Announcements</h2>
+                        </div>
+                        <p id="home-announce-status" class="programmes-status">
+                            Loading announcements…
+                        </p>
+                        <div id="home-announce-root" class="announce-list"></div>
+                    </aside>
+                    <div class="news-split-news">
+                        <div class="section-heading">
+                            <span class="section-eyebrow">NEWS</span>
+                            <h2 id="news-title">Latest News</h2>
+                        </div>
+                        <div id="home-news-root" class="card-grid news-grid"></div>
+                        <div class="section-cta">
+                            <a href="html/news.html" class="btn btn-secondary">
+                                View All News
+                            </a>
+                        </div>
+                    </div>
                 </div>
-
-                <div id="home-news-root" class="card-grid news-grid"></div>
-
-                <div class="section-cta">
-                    <a href="html/news.html"
-                       class="btn btn-secondary">
-                        View All News
-                    </a>
-                </div>
-
             </div>
         </section>
 
@@ -403,8 +394,8 @@
     <script src="js/contactConfig.js"></script>
     <script src="js/slider.js"></script>
     <script src="js/main.js"></script>
-    <script src="js/news.js?v=news-8"></script>
-    <script src="js/announcements.js?v=announce-1"></script>
+    <script src="js/news.js?v=news-10"></script>
+    <script src="js/announcements.js?v=announce-2"></script>
 
 </body>
 </html>

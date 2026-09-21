@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { API_ORIGIN, apiFetch } from "../api";
+import { useMockAuth } from "../context/MockAuthContext";
+import { printManagementReport } from "../print/printReport";
 import { MANAGEMENT_NAV } from "./managementNav";
+import "./AcademicStructure.css";
 import "./StudentRecords.css";
 
 const KPI = [
@@ -15,6 +18,7 @@ const KPI = [
 ];
 
 export default function InstitutionReports() {
+  const { displayName } = useMockAuth();
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
@@ -38,9 +42,26 @@ export default function InstitutionReports() {
     })();
   }, []);
 
+  const exportReport = () => {
+    if (!summary) return;
+    printManagementReport({
+      documentTitle: "Institution Reports",
+      printedBy: displayName,
+      kpis: KPI.map((item) => ({ label: item.label, value: summary[item.key] })),
+    });
+  };
+
   return (
     <DashboardLayout title="Institution Reports" navItems={MANAGEMENT_NAV}>
       {apiError && <div className="records-error">{apiError}</div>}
+      <div className="as-toolbar">
+        <button type="button" className="as-add-btn" onClick={exportReport} disabled={!summary}>
+          Print
+        </button>
+        <button type="button" className="as-cancel-btn" onClick={exportReport} disabled={!summary}>
+          Export PDF
+        </button>
+      </div>
       {isLoading && (
         <p style={{ color: "var(--text-light)", marginBottom: 18 }}>
           Loading institution reports…

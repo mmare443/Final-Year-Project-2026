@@ -202,7 +202,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
-                "http://localhost:8899")
+                "http://localhost:8899",
+                "http://127.0.0.1:8899")
               .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
               .WithHeaders("Authorization", "Content-Type", "Accept", "X-User-Id", "X-Requested-With")
               .AllowCredentials());

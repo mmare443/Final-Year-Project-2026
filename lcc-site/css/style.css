@@ -374,19 +374,57 @@ a {
     white-space: pre-wrap;
 }
 
-.announce-grid {
-    margin-top: 8px;
+.news-split {
+    display: grid;
+    grid-template-columns: minmax(0, 30%) minmax(0, 70%);
+    gap: 32px;
+    align-items: start;
 }
 
-.announce-card-head {
+.news-split-announce,
+.news-split-news {
+    min-width: 0;
+}
+
+.news-split .section-heading {
+    max-width: none;
+    margin: 0 0 20px;
+    text-align: left;
+}
+
+.news-split .section-heading h1,
+.news-split .section-heading h2 {
+    font-size: clamp(1.45rem, 2.5vw, 2rem);
+}
+
+.news-split .news-grid {
+    grid-template-columns: 1fr 1fr;
+}
+
+.news-split .section-cta {
+    justify-content: flex-start;
+    margin-top: 24px;
+}
+
+.announce-list {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    flex-direction: column;
     gap: 12px;
 }
 
-.announce-card-head h3 {
-    margin: 0 0 8px;
+.announce-item {
+    padding: 16px 18px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.announce-item h3 {
+    margin: 0 0 6px;
+    font-size: 1.02rem;
+    line-height: 1.35;
+    color: var(--secondary);
 }
 
 .announce-date {
@@ -395,8 +433,15 @@ a {
     font-size: 13px;
 }
 
+.announce-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .announce-badge {
-    flex-shrink: 0;
+    display: inline-block;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -404,6 +449,27 @@ a {
     padding: 4px 8px;
     border-radius: 999px;
     background: #eef2f6;
+    color: var(--secondary);
+}
+
+.announce-badge-PUBLIC {
+    background: #e8f1ff;
+    color: #1d4ed8;
+}
+
+.announce-badge-EVERYONE {
+    background: #ecfdf3;
+    color: #067647;
+}
+
+.announce-badge-STUDENT {
+    background: #f4f0ff;
+    color: #6941c6;
+}
+
+.announce-badge-STAFF {
+    background: #fff6e8;
+    color: #b54708;
 }
 
 .announce-badge-High {
@@ -414,6 +480,34 @@ a {
 .announce-badge-Urgent {
     background: #fdecec;
     color: #b42318;
+}
+
+.announce-more {
+    display: inline-flex;
+    margin-top: 10px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--primary);
+    font-family: var(--font-main);
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.announce-more:hover {
+    text-decoration: underline;
+}
+
+.announce-body {
+    margin: 10px 0 0;
+    color: var(--text);
+    font-size: 14px;
+    white-space: pre-wrap;
+}
+
+.announce-body[hidden] {
+    display: none;
 }
 
 .news-media {
@@ -575,6 +669,16 @@ a {
     .footer-grid,
     .contact-layout {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .news-split .news-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .news-split {
+        grid-template-columns: 1fr;
     }
 }
 

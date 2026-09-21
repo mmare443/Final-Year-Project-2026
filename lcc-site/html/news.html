@@ -19,7 +19,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
-    <link rel="stylesheet" href="../css/style.css?v=news-8">
+    <link rel="stylesheet" href="../css/style.css?v=announce-3">
     <link rel="stylesheet" href="../css/header.css?v=brand-2">
 </head>
 
@@ -75,41 +75,30 @@
     </header>
 
     <main>
-        <section class="section announce-preview" aria-labelledby="announce-page-title">
+        <section class="section news-preview" id="news-and-announcements" aria-labelledby="news-page-title">
             <div class="container">
-                <div class="section-heading">
-                    <span class="section-eyebrow">ANNOUNCEMENTS</span>
-                    <h1 id="announce-page-title">College notices</h1>
-                    <p>
-                        Operational notices for the college community.
-                        Public and everyone announcements appear here.
-                    </p>
+                <div class="news-split">
+                    <aside class="news-split-announce" aria-labelledby="announce-page-title">
+                        <div class="section-heading">
+                            <span class="section-eyebrow">ANNOUNCEMENTS</span>
+                            <h1 id="announce-page-title">Announcements</h1>
+                        </div>
+                        <p id="home-announce-status" class="programmes-status">
+                            Loading announcements…
+                        </p>
+                        <div id="home-announce-root" class="announce-list"></div>
+                    </aside>
+                    <div class="news-split-news">
+                        <div class="section-heading">
+                            <span class="section-eyebrow">NEWS</span>
+                            <h2 id="news-page-title">Latest News</h2>
+                        </div>
+                        <p id="news-status" class="programmes-status">
+                            Loading news…
+                        </p>
+                        <div id="news-root" class="card-grid news-grid"></div>
+                    </div>
                 </div>
-                <p id="home-announce-status" class="programmes-status">
-                    Loading announcements…
-                </p>
-                <div id="home-announce-root" class="card-grid announce-grid"></div>
-            </div>
-        </section>
-
-        <section class="section" aria-labelledby="news-page-title">
-            <div class="container">
-
-                <div class="section-heading">
-                    <span class="section-eyebrow">NEWS</span>
-                    <h2 id="news-page-title">Latest from LCC</h2>
-                    <p>
-                        Media and public relations stories published for
-                        students, staff and the wider community.
-                    </p>
-                </div>
-
-                <p id="news-status" class="programmes-status">
-                    Loading news…
-                </p>
-
-                <div id="news-root" class="card-grid news-grid"></div>
-
             </div>
         </section>
     </main>
@@ -146,8 +135,8 @@
 
     <script src="../js/contactConfig.js"></script>
     <script src="../js/main.js"></script>
-    <script src="../js/announcements.js?v=announce-1"></script>
-    <script src="../js/news.js?v=news-8"></script>
+    <script src="../js/announcements.js?v=announce-2"></script>
+    <script src="../js/news.js?v=news-10"></script>
 
 </body>
 </html>
