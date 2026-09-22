@@ -1,5 +1,5 @@
 /* Shared API origin for public site scripts (classic, non-module). */
-window.API_ORIGIN = "http://localhost:5000";
+window.API_ORIGIN = "http://api.lccbportal.org";
 
 window.LCC_CONTACT = {
     institution: "Lutheran Church College Banz",

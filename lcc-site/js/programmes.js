@@ -18,7 +18,7 @@ function formatDuration(years) {
 }
 
 async function fetchJson(path) {
-    const res = await fetch(`${API_ORIGIN}${path}`);
+    const res = await fetch(window.collegeApiUrl(path));
     if (!res.ok) {
         throw new Error(`API returned ${res.status}`);
     }
@@ -128,7 +128,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         status.hidden = true;
     } catch (err) {
         status.textContent =
-            "Couldn't load programmes. Make sure the College API is running on http://localhost:5000.";
+            "Unable to connect to the College API.";
         console.error(err);
     }
 });

@@ -45,10 +45,24 @@ public class AnnouncementsController : ControllerBase
     [HttpGet("public")]
     public async Task<ActionResult<IEnumerable<AnnouncementRecord>>> GetPublic(CancellationToken cancellationToken)
     {
-        var rows = await ActiveFeedQuery(DateOnly.FromDateTime(DateTime.UtcNow))
-            .Where(a => a.Audience == "PUBLIC" || a.Audience == "EVERYONE")
-            .ToListAsync(cancellationToken);
-        return Ok(OrderFeed(rows).Select(ToRecord));
+        try
+        {
+            var rows = await _dbContext.Announcements.AsNoTracking()
+                .Where(a => a.IsPublished && !a.IsArchived)
+                .Where(a => a.Audience == "PUBLIC" || a.Audience == "EVERYONE")
+                .Where(a => a.StartDate == null || a.StartDate <= DateOnly.FromDateTime(DateTime.UtcNow))
+                .Where(a => a.EndDate == null || a.EndDate >= DateOnly.FromDateTime(DateTime.UtcNow))
+                .ToListAsync(cancellationToken);
+            return Ok(OrderFeed(rows).Select(ToRecord).ToList());
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                error = ex.Message,
+                inner = ex.InnerException?.Message
+            });
+        }
     }
 
     [Authorize]
@@ -310,6 +324,19 @@ public class AnnouncementsController : ControllerBase
             return true;
         }
         return ex.InnerException is SqlException;
+    }
+
+    private static bool IsMissingSchema(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql && sql.Number is 208 or 207)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

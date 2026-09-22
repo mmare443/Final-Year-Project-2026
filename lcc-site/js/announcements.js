@@ -82,7 +82,7 @@ async function loadPublicAnnouncements() {
     bindToggles(root);
 
     try {
-        const res = await fetch(`${API_ORIGIN}/api/announcements/public`);
+        const res = await fetch(window.collegeApiUrl("/api/announcements/public"));
         if (!res.ok) throw new Error(`API ${res.status}`);
         const data = await res.json();
         const items = Array.isArray(data) ? data.slice(0, 8) : [];
@@ -96,7 +96,7 @@ async function loadPublicAnnouncements() {
         console.error("Announcements render failed", err);
         if (status) {
             status.hidden = false;
-            status.textContent = "Couldn't load announcements.";
+            status.textContent = "Unable to connect to the College API.";
         }
     }
 }

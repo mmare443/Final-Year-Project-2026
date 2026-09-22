@@ -33,18 +33,29 @@ public class NewsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<NewsArticleRecord>>> GetNews(CancellationToken cancellationToken)
     {
-        var query = ArticleGraph().AsNoTracking();
-        if (!await CanManageAsync(cancellationToken))
+        try
         {
-            query = query.Where(a => a.IsPublished);
+            var query = _dbContext.NewsArticles.AsNoTracking();
+            if (!await CanManageAsync(cancellationToken))
+            {
+                query = query.Where(a => a.IsPublished);
+            }
+
+            var articles = await query
+                .OrderByDescending(a => a.PublishedAt)
+                .ThenByDescending(a => a.NewsId)
+                .ToListAsync(cancellationToken);
+
+            return Ok(articles.Select(ToRecord).ToList());
         }
-
-        var articles = await query
-            .OrderByDescending(a => a.PublishedAt)
-            .ThenByDescending(a => a.NewsId)
-            .ToListAsync(cancellationToken);
-
-        return Ok(articles.Select(ToRecord));
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                error = ex.Message,
+                inner = ex.InnerException?.Message
+            });
+        }
     }
 
     [Authorize(Policy = "PrincipalAdminOnly")]
@@ -410,6 +421,19 @@ public class NewsController : ControllerBase
         {
             message = "A related record was not found (created_by).";
             return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsMissingSchema(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql && sql.Number is 208 or 207)
+            {
+                return true;
+            }
         }
 
         return false;

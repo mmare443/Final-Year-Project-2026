@@ -190,22 +190,27 @@ builder.Services.AddHttpClient<LCC_CMS_Api.Services.OpenGraphMetadataClient>(cli
 builder.Services.AddSingleton<LCC_CMS_Api.Services.IEntraUserProvisioner, LCC_CMS_Api.Services.GraphEntraUserProvisioner>();
 
 // ---------------------------------------------------------------
-// CORS — SPA at http://localhost:5173 (and the static site).
-// POST JSON (login) sends an OPTIONS preflight; GET /api/health does not.
-// UseCors must run after UseRouting so preflight and error responses
-// receive Access-Control-Allow-Origin. Unhandled exceptions skip CORS
-// unless the exception pipeline also uses this policy.
+// CORS — public site at lccbportal.org and local SPA/static site.
+// GET from the browser sends Origin; without a matching ACAO header
+// Chrome reports "No 'Access-Control-Allow-Origin' header".
+// UseCors must run after UseRouting. Exception pipeline also uses
+// this policy so 500 responses still include ACAO.
 // ---------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SpaClient", policy =>
-        policy.WithOrigins(
+        policy.SetIsOriginAllowed(IsAllowedCorsOrigin)
+              .WithOrigins(
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
                 "http://localhost:8899",
-                "http://127.0.0.1:8899")
+                "http://127.0.0.1:8899",
+                "http://lccbportal.org",
+                "https://lccbportal.org",
+                "http://www.lccbportal.org",
+                "https://www.lccbportal.org")
               .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-              .WithHeaders("Authorization", "Content-Type", "Accept", "X-User-Id", "X-Requested-With")
+              .AllowAnyHeader()
               .AllowCredentials());
 });
 
@@ -250,6 +255,7 @@ app.UseExceptionHandler(errorApp =>
             context.Request.Method,
             context.Request.Path);
 
+        ApplyCorsHeaders(context);
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsJsonAsync(new { error = "An error occurred." });
@@ -257,6 +263,18 @@ app.UseExceptionHandler(errorApp =>
 });
 
 app.UseRouting();
+app.Use(async (context, next) =>
+{
+    ApplyCorsHeaders(context);
+    if (HttpMethods.IsOptions(context.Request.Method)
+        && IsAllowedCorsOrigin(context.Request.Headers.Origin.ToString()))
+    {
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
+
+    await next();
+});
 app.UseCors("SpaClient");
 
 // Static files
@@ -325,4 +343,40 @@ static bool IsAzureAdGuid(string? value)
 static bool IsAzureAdAudienceConfigured(IConfiguration configuration)
 {
     return IsAzureAdGuid(configuration["AzureAd:Audience"]);
+}
+
+static bool IsAllowedCorsOrigin(string? origin)
+{
+    if (string.IsNullOrWhiteSpace(origin)) return false;
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+    if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
+
+    var host = uri.Host;
+    if (host.Equals("lccbportal.org", StringComparison.OrdinalIgnoreCase)) return true;
+    if (host.Equals("www.lccbportal.org", StringComparison.OrdinalIgnoreCase)) return true;
+    if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+        && uri.Port is 5173 or 8899)
+    {
+        return true;
+    }
+
+    if (host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+        && uri.Port is 5173 or 8899)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+static void ApplyCorsHeaders(HttpContext context)
+{
+    var origin = context.Request.Headers.Origin.ToString();
+    if (!IsAllowedCorsOrigin(origin)) return;
+
+    context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+    context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+    context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+    context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-User-Id, X-Requested-With";
+    context.Response.Headers.Append("Vary", "Origin");
 }

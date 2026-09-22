@@ -9,7 +9,7 @@ async function loadProgrammes() {
     const status = byId("apply-form-status");
     if (!select) return [];
 
-    const res = await fetch(`${API_ORIGIN}/api/academic-structure/programmes`);
+    const res = await fetch(window.collegeApiUrl("/api/academic-structure/programmes"));
     if (!res.ok) {
         throw new Error(`API returned ${res.status}`);
     }
@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (statusEl) {
             statusEl.hidden = false;
             statusEl.textContent =
-                "Couldn't load programmes. Make sure the College API is running on http://localhost:5000.";
+                "Unable to connect to the College API.";
         }
         console.error(err);
     }
@@ -140,7 +140,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         try {
-            const res = await fetch(`${API_ORIGIN}/api/admissions`, {
+            const res = await fetch(window.collegeApiUrl("/api/admissions"), {
                 method: "POST",
                 body,
             });
@@ -179,8 +179,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch (err) {
             if (errorEl) {
                 errorEl.hidden = false;
-                errorEl.textContent = err.message
-                    || "Couldn't submit. Make sure the College API is running on http://localhost:5000.";
+                errorEl.textContent = "Unable to connect to the College API.";
             }
         } finally {
             if (submitBtn) {

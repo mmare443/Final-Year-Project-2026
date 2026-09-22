@@ -6,5 +6,5 @@ public sealed class PortalSettings
 
     public string ActivationBaseUrl { get; set; } = "https://lccbportal.org/activate";
 
-    public string ResetPasswordBaseUrl { get; set; } = "http://localhost:5173/reset-password";
+    public string ResetPasswordBaseUrl { get; set; } = "http://lccbportal.org/reset-password";
 }

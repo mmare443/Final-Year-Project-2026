@@ -192,7 +192,7 @@ function parseNewsPayload(data) {
 }
 
 async function fetchNewsList() {
-    const res = await fetch(`${API_ORIGIN}/api/news`);
+    const res = await fetch(window.collegeApiUrl("/api/news"));
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     return parseNewsPayload(await res.json())
         .map(normalizeArticle)
@@ -200,7 +200,7 @@ async function fetchNewsList() {
 }
 
 async function fetchNewsArticle(id) {
-    const res = await fetch(`${API_ORIGIN}/api/news/${encodeURIComponent(id)}`);
+    const res = await fetch(window.collegeApiUrl(`/api/news/${encodeURIComponent(id)}`));
     if (!res.ok) throw new Error(`API returned ${res.status}`);
     return normalizeArticle(await res.json());
 }
@@ -257,7 +257,7 @@ async function bootNews() {
         }
     } catch (err) {
         const message =
-            "Couldn't load news. Make sure the College API is running on http://localhost:5000.";
+            "Unable to connect to the College API.";
         if (status) {
             status.hidden = false;
             status.textContent = message;
