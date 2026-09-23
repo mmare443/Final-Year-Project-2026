@@ -21,7 +21,7 @@ public static class ActivationToken
     public static string ActivationLink(string? baseUrl, string token)
     {
         var root = string.IsNullOrWhiteSpace(baseUrl)
-            ? "https://lccbportal.org/activate"
+            ? "http://portal.lccbportal.org/activate"
             : baseUrl.Trim().TrimEnd('/');
         return $"{root}?token={Uri.EscapeDataString(token)}";
     }

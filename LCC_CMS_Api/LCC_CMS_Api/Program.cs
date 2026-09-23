@@ -172,9 +172,10 @@ builder.Services.AddAuthorization(options =>
 // ---------------------------------------------------------------
 // Database - EF Core / SQL Server
 // ---------------------------------------------------------------
+var lccCmsDb = builder.Configuration.GetConnectionString("LccCmsDb");
+var lccSql = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(lccCmsDb);
 builder.Services.AddDbContext<LccCmsDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("LccCmsDb")));
+    options.UseSqlServer(lccCmsDb));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LCC_CMS_Api.Services.ICurrentUser, LCC_CMS_Api.Services.CurrentUserService>();
@@ -190,11 +191,13 @@ builder.Services.AddHttpClient<LCC_CMS_Api.Services.OpenGraphMetadataClient>(cli
 builder.Services.AddSingleton<LCC_CMS_Api.Services.IEntraUserProvisioner, LCC_CMS_Api.Services.GraphEntraUserProvisioner>();
 
 // ---------------------------------------------------------------
-// CORS — public site at lccbportal.org and local SPA/static site.
+// CORS — website, portal, and local dev servers.
 // GET from the browser sends Origin; without a matching ACAO header
 // Chrome reports "No 'Access-Control-Allow-Origin' header".
 // UseCors must run after UseRouting. Exception pipeline also uses
 // this policy so 500 responses still include ACAO.
+// SetIsOriginAllowed is what the runtime checks; keep it in sync
+// with the origin list below.
 // ---------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
@@ -208,8 +211,10 @@ builder.Services.AddCors(options =>
                 "http://lccbportal.org",
                 "https://lccbportal.org",
                 "http://www.lccbportal.org",
-                "https://www.lccbportal.org")
-              .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                "https://www.lccbportal.org",
+                "http://portal.lccbportal.org",
+                "https://portal.lccbportal.org")
+              .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials());
 });
@@ -220,6 +225,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+app.Logger.LogInformation(
+    "SQL target {DataSource} database {Database} integratedSecurity {IntegratedSecurity}",
+    lccSql.DataSource,
+    lccSql.InitialCatalog,
+    lccSql.IntegratedSecurity);
 
 if (localJwtConfigured)
 {
@@ -258,7 +269,17 @@ app.UseExceptionHandler(errorApp =>
         ApplyCorsHeaders(context);
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json";
-        await context.Response.WriteAsJsonAsync(new { error = "An error occurred." });
+        var message = feature?.Error?.GetBaseException().Message;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = "An error occurred.";
+        }
+
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = message,
+            inner = feature?.Error?.InnerException?.Message
+        });
     });
 });
 
@@ -354,6 +375,7 @@ static bool IsAllowedCorsOrigin(string? origin)
     var host = uri.Host;
     if (host.Equals("lccbportal.org", StringComparison.OrdinalIgnoreCase)) return true;
     if (host.Equals("www.lccbportal.org", StringComparison.OrdinalIgnoreCase)) return true;
+    if (host.Equals("portal.lccbportal.org", StringComparison.OrdinalIgnoreCase)) return true;
     if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
         && uri.Port is 5173 or 8899)
     {

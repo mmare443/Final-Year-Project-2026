@@ -1,6 +1,6 @@
 const TOKEN_KEY = "lcc_cms_jwt";
 
-export const API_ORIGIN = "http://localhost:5000";
+export const API_ORIGIN = "http://api.lccbportal.org";
 
 export function getAccessToken() {
   return sessionStorage.getItem(TOKEN_KEY);
@@ -36,7 +36,7 @@ export function isNetworkFailure(err) {
 }
 
 export const API_UNREACHABLE =
-  "Couldn't reach the backend API. Make sure it is running on http://localhost:5000.";
+  "Couldn't reach the College API at http://api.lccbportal.org.";
 
 export async function readApiError(res) {
   const text = (await res.text().catch(() => "")).trim();

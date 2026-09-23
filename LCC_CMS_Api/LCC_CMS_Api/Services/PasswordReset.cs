@@ -21,7 +21,7 @@ public static class PasswordReset
     public static string ResetLink(string? baseUrl, string token)
     {
         var root = string.IsNullOrWhiteSpace(baseUrl)
-            ? "http://localhost:5173/reset-password"
+            ? "http://portal.lccbportal.org/reset-password"
             : baseUrl.Trim().TrimEnd('/');
         return $"{root}?token={Uri.EscapeDataString(token)}";
     }

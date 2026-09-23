@@ -34,7 +34,7 @@ export default function InstitutionReports() {
       } catch {
         setSummary(null);
         setApiError(
-          "Couldn't reach the backend API. Make sure `dotnet run` is running on http://localhost:5000."
+          "Couldn't reach the backend API. Make sure `dotnet run` is running on http://api.lccbportal.org."
         );
       } finally {
         setIsLoading(false);

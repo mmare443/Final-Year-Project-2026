@@ -23,7 +23,7 @@ public static class NewsMetadataBackfill
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Could not backfill news Open Graph metadata. Apply Rev12.");
+            logger.LogWarning(ex, "News Open Graph backfill skipped: {Message}", ex.GetBaseException().Message);
             return;
         }
 
