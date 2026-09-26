@@ -1,8 +1,10 @@
+import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { useMockData } from "../context/MockDataContext";
 import { useMockAuth, JOB_TITLES } from "../context/MockAuthContext";
 import { REGISTRAR_NAV } from "./registrarNav";
 import AnnouncementWidget from "../components/AnnouncementWidget";
+import "../components/AdmissionsQueue.css";
 
 /**
  * Job-title-based dashboard variants — UI only. Every job title here
@@ -80,8 +82,15 @@ export default function RegistrarAdminDashboard() {
           <h2 style={{ margin: "28px 0 14px", fontSize: 16, color: "var(--secondary)" }}>
             Overview
           </h2>
+          {pendingCount > 0 && (
+            <p className="admissions-review-note">
+              {pendingCount} new application{pendingCount === 1 ? "" : "s"} waiting for the Registrar.{" "}
+              <Link to="/registrar/admissions">Open Admissions</Link>
+            </p>
+          )}
           <p style={{ color: "var(--text-light)", fontSize: 13 }}>
             Open <strong>Admissions</strong> in the sidebar to review the application queue.
+            The Principal does not receive submitted applications.
           </p>
         </>
       )}

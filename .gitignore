@@ -1,1 +1,17 @@
 .vs/
+LCC_CMS_Api/LCC_CMS_Api/App_Data/uploads/
+docs/LCC-CMS-SRS-overview.png
+docs/LCC-CMS_SRS_Presentation.pptx
+*.bak
+*.mdf
+*.ldf
+.env
+.env.*
+appsettings.Production.json
+*.pfx
+*.key
+*.pem
+**/bin/
+**/obj/
+**/dist/
+node_modules/

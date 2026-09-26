@@ -1142,6 +1142,10 @@ public partial class LccCmsDbContext : DbContext
                 .IsUnique()
                 .HasFilter("[password_reset_token] IS NOT NULL");
 
+            entity.HasIndex(e => e.LoginCode, "UX_users_login_code")
+                .IsUnique()
+                .HasFilter("[login_code] IS NOT NULL");
+
             entity.Property(e => e.UserId).HasColumnName("user_id");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(sysutcdatetime())")
@@ -1149,6 +1153,9 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.Email)
                 .HasMaxLength(255)
                 .HasColumnName("email");
+            entity.Property(e => e.LoginCode)
+                .HasMaxLength(30)
+                .HasColumnName("login_code");
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(500)
                 .HasColumnName("password_hash");

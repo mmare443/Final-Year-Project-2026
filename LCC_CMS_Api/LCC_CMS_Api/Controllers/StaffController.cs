@@ -177,7 +177,13 @@ public class StaffController : ControllerBase
             request.FullName, request.Email, request.Role, request.JobTitle, request.EmploymentDetails);
         if (error is not null) return error;
 
-        var email = request.Email.Trim();
+        var submittedEmail = request.Email.Trim();
+        var email = await AllocateInstitutionalStaffEmailAsync(request.FullName, cancellationToken);
+        if (email is null)
+        {
+            return BadRequest("Staff name must include a letter in the first name and the surname.");
+        }
+
         var sqlRole = RoleNames.ToSqlRole(request.Role.Trim());
         if (!StaffSqlRoles.Contains(sqlRole))
         {
@@ -232,6 +238,9 @@ public class StaffController : ControllerBase
             EmploymentDetails = string.IsNullOrWhiteSpace(request.EmploymentDetails)
                 ? null
                 : request.EmploymentDetails.Trim(),
+            PersonalEmail = submittedEmail.Equals(email, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : submittedEmail,
             StaffNavigation = user,
         };
         _dbContext.Staff.Add(staff);
@@ -484,6 +493,39 @@ public class StaffController : ControllerBase
                 CourseName = a.Course.CourseName,
             }).ToList(),
         };
+    }
+
+    private async Task<string?> AllocateInstitutionalStaffEmailAsync(
+        string fullName,
+        CancellationToken cancellationToken)
+    {
+        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return null;
+        }
+
+        var first = new string(parts[0].Where(char.IsLetter).ToArray());
+        var surname = new string(parts[^1].Where(char.IsLetter).ToArray());
+        if (first.Length == 0 || surname.Length == 0)
+        {
+            return null;
+        }
+
+        var baseLocal = char.ToLowerInvariant(first[0]) + surname.ToLowerInvariant();
+        for (var suffix = 0; suffix <= 50; suffix++)
+        {
+            var candidate = baseLocal + (suffix == 0 ? "" : suffix.ToString()) + "@lccbportal.org";
+            var taken = await _dbContext.Users.AnyAsync(
+                u => u.Email.ToLower() == candidate,
+                cancellationToken);
+            if (!taken)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private async Task<string> NextStaffNumberAsync(CancellationToken cancellationToken)

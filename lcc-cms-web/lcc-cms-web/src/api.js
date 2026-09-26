@@ -1,6 +1,11 @@
 const TOKEN_KEY = "lcc_cms_jwt";
 
-export const API_ORIGIN = "http://api.lccbportal.org";
+const localPage = typeof window !== "undefined"
+  && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
+export const API_ORIGIN = localPage
+  ? "http://localhost:5080"
+  : "https://api.lccbportal.org";
 
 export function getAccessToken() {
   return sessionStorage.getItem(TOKEN_KEY);
@@ -36,7 +41,7 @@ export function isNetworkFailure(err) {
 }
 
 export const API_UNREACHABLE =
-  "Couldn't reach the College API at http://api.lccbportal.org.";
+  "Couldn't reach the College API at https://api.lccbportal.org.";
 
 export async function readApiError(res) {
   const text = (await res.text().catch(() => "")).trim();

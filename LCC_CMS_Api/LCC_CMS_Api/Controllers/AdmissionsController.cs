@@ -1,6 +1,7 @@
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,8 @@ public class AdmissionsController : ControllerBase
     private readonly ICurrentUser _currentUser;
     private readonly IFileStorage _fileStorage;
     private readonly IEntraUserProvisioner _entraUsers;
+    private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly JwtSettings _jwtSettings;
     private readonly PortalSettings _portal;
     private readonly ContactSettings _contact;
     private readonly ILogger<AdmissionsController> _logger;
@@ -48,6 +51,8 @@ public class AdmissionsController : ControllerBase
         ICurrentUser currentUser,
         IFileStorage fileStorage,
         IEntraUserProvisioner entraUsers,
+        IPasswordHasher<User> passwordHasher,
+        IOptions<JwtSettings> jwtSettings,
         IOptions<PortalSettings> portal,
         IOptions<ContactSettings> contact,
         ILogger<AdmissionsController> logger)
@@ -56,6 +61,8 @@ public class AdmissionsController : ControllerBase
         _currentUser = currentUser;
         _fileStorage = fileStorage;
         _entraUsers = entraUsers;
+        _passwordHasher = passwordHasher;
+        _jwtSettings = jwtSettings.Value;
         _portal = portal.Value;
         _contact = contact.Value;
         _logger = logger;
@@ -301,15 +308,28 @@ public class AdmissionsController : ControllerBase
                 return Conflict("Could not allocate a unique student number. Retry the decision.");
             }
 
-            var mailNickname = studentNumber.Replace("-", "", StringComparison.Ordinal);
-            var provisioned = await _entraUsers.CreateStudentAccountAsync(
-                admission.ApplicantName,
-                mailNickname,
-                cancellationToken);
-            entraObjectId = provisioned.ObjectId;
+            var mailNickname = studentNumber.Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
+            var institutionalEmail = $"{mailNickname}@student.lccbportal.org";
+            var localIdentity = false;
+            ProvisionedEntraAccount provisioned;
+            try
+            {
+                provisioned = await _entraUsers.CreateStudentAccountAsync(
+                    admission.ApplicantName,
+                    mailNickname,
+                    cancellationToken);
+            }
+            catch (EntraProvisioningException ex) when (ex.StatusCode == StatusCodes.Status503ServiceUnavailable)
+            {
+                _logger.LogWarning(ex, "Entra is not configured. Creating local student identity {Email}.", institutionalEmail);
+                localIdentity = true;
+                provisioned = new ProvisionedEntraAccount(Guid.NewGuid().ToString("D"), institutionalEmail);
+            }
+
+            entraObjectId = localIdentity ? null : provisioned.ObjectId;
 
             if (await _dbContext.Users.AnyAsync(
-                    u => u.Email == provisioned.UserPrincipalName || u.EntraId == provisioned.ObjectId,
+                    u => u.Email == institutionalEmail || u.EntraId == provisioned.ObjectId,
                     cancellationToken))
             {
                 await transaction.RollbackAsync(cancellationToken);
@@ -319,16 +339,20 @@ public class AdmissionsController : ControllerBase
 
             var user = new User
             {
-                Email = provisioned.UserPrincipalName,
+                Email = institutionalEmail,
                 Role = "Student",
                 Status = "Active",
                 CreatedAt = DateTime.UtcNow,
                 EntraId = provisioned.ObjectId,
-                ActivationToken = ActivationToken.Create(),
-                ActivationExpiresAt = ActivationToken.ExpiresAtUtc(),
-                ActivationUsed = false,
+                ActivationToken = localIdentity ? null : ActivationToken.Create(),
+                ActivationExpiresAt = localIdentity ? null : ActivationToken.ExpiresAtUtc(),
+                ActivationUsed = localIdentity,
                 MustChangePassword = true,
             };
+            if (localIdentity && !string.IsNullOrWhiteSpace(_jwtSettings.LabPassword))
+            {
+                user.PasswordHash = _passwordHasher.HashPassword(user, _jwtSettings.LabPassword);
+            }
             _dbContext.Users.Add(user);
             await _dbContext.SaveChangesAsync(cancellationToken);
 

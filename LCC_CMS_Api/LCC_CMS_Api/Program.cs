@@ -377,13 +377,7 @@ static bool IsAllowedCorsOrigin(string? origin)
     if (host.Equals("www.lccbportal.org", StringComparison.OrdinalIgnoreCase)) return true;
     if (host.Equals("portal.lccbportal.org", StringComparison.OrdinalIgnoreCase)) return true;
     if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-        && uri.Port is 5173 or 8899)
-    {
-        return true;
-    }
-
-    if (host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-        && uri.Port is 5173 or 8899)
+        || host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase))
     {
         return true;
     }

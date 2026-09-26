@@ -100,8 +100,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!form) return;
 
+    let submitting = false;
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (submitting) return;
+        submitting = true;
         if (errorEl) {
             errorEl.hidden = true;
             errorEl.textContent = "";
@@ -114,6 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             || "";
 
         if (!programmeId) {
+            submitting = false;
             if (errorEl) {
                 errorEl.hidden = false;
                 errorEl.textContent = "Please select a programme.";
@@ -123,6 +127,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const fileError = validateFiles(form);
         if (fileError) {
+            submitting = false;
             if (errorEl) {
                 errorEl.hidden = false;
                 errorEl.textContent = fileError;
@@ -136,7 +141,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (submitBtn) {
             submitBtn.disabled = true;
-            submitBtn.textContent = "Submitting…";
+            submitBtn.textContent = "Submitting...";
         }
 
         try {
@@ -145,43 +150,27 @@ document.addEventListener("DOMContentLoaded", async () => {
                 body,
             });
             if (!res.ok) {
-                const message = await res.text().catch(() => "");
-                throw new Error(message || `API returned ${res.status}`);
+                throw new Error("submit failed");
             }
 
             await res.json();
-            form.hidden = true;
+            form.reset();
             if (successEl) {
-                const c = window.LCC_CONTACT || {};
                 successEl.hidden = false;
-                successEl.innerHTML = `
-                    <h2>Application Submitted Successfully</h2>
-                    <p>Thank you for applying to ${c.institution || "Lutheran Church College Banz"}.</p>
-                    <p>Your application has been received and is currently under review.</p>
-                    <p>Please remain at your current location while your application is being assessed.</p>
-                    <p>You will be contacted by the College via Email and/or WhatsApp if your application is successful.</p>
-                    <p>Application enquiries: ${c.applicationContact || ""} (${c.applicationEmail || ""}).</p>
-                    <p>At this stage:</p>
-                    <ul>
-                        <li>✅ No travel is required</li>
-                        <li>✅ No registration is required</li>
-                        <li>✅ No tuition payment is required</li>
-                    </ul>
-                    <p>Please wait for official communication before making travel arrangements.</p>
-                    <p>
-                        <a href="programmes.html">View programmes</a>
-                        ·
-                        <a href="../index.html">Return home</a>
-                    </p>
-                `;
+                successEl.innerHTML = "<h2>Application submitted successfully.</h2>";
                 successEl.scrollIntoView({ behavior: "smooth" });
+                window.setTimeout(() => {
+                    successEl.hidden = true;
+                    successEl.innerHTML = "";
+                }, 6000);
             }
         } catch (err) {
             if (errorEl) {
                 errorEl.hidden = false;
-                errorEl.textContent = "Unable to connect to the College API.";
+                errorEl.textContent = "Unable to submit the application. Please try again.";
             }
         } finally {
+            submitting = false;
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = "Submit application";

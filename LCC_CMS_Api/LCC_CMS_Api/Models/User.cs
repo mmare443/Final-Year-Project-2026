@@ -11,6 +11,8 @@ public partial class User
 
     public string Email { get; set; } = null!;
 
+    public string? LoginCode { get; set; }
+
     public string? PasswordHash { get; set; }
 
     public string? ActivationToken { get; set; }

@@ -48,7 +48,7 @@ export default function HoDReports() {
         setApiError(null);
       } catch {
         setApiError(
-          "Couldn't reach the backend API. Make sure `dotnet run` is running on http://api.lccbportal.org."
+          "Couldn't reach the backend API. Make sure `dotnet run` is running on https://api.lccbportal.org."
         );
       } finally {
         setIsLoading(false);

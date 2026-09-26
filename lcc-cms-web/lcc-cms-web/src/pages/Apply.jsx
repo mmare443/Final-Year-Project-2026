@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMockData } from "../context/MockDataContext";
 import { API_ORIGIN, apiFetch } from "../api";
 import { PUBLIC_SITE_URL } from "../config";
@@ -43,6 +43,7 @@ export default function Apply() {
   const [submitted, setSubmitted] = useState(null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const submitLock = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -86,8 +87,16 @@ export default function Apply() {
     setDocuments((prev) => ({ ...prev, [fieldKey]: file }));
   };
 
+  useEffect(() => {
+    if (!submitted) return undefined;
+    const timer = window.setTimeout(() => setSubmitted(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [submitted]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting || submitLock.current) return;
+    submitLock.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -100,9 +109,10 @@ export default function Apply() {
       setSubmitted(record);
       setForm(EMPTY_FORM);
       setDocuments({});
-    } catch (err) {
-      setError(err.message || "Couldn't submit — check that the backend API is running.");
+    } catch {
+      setError("Unable to submit the application. Please try again.");
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
@@ -111,30 +121,10 @@ export default function Apply() {
     return (
       <div className="apply-page">
         <div className="apply-card">
-          <PageHeader title="Application Submitted Successfully" />
+          <PageHeader title="Application submitted successfully." />
           <p className="apply-intro">
-            Thank you for applying to {CONTACT.institution}.
+            The Registrar will review this application under Admissions.
           </p>
-          <p className="apply-note">
-            Your application has been received and is currently under review.
-          </p>
-          <p className="apply-note">
-            Please remain at your current location while your application is being assessed.
-          </p>
-          <p className="apply-note">
-            You will be contacted by the College via Email and/or WhatsApp if your application is successful.
-            Application contact: {CONTACT.applicationContact} ({CONTACT.applicationEmail}).
-          </p>
-          <p className="apply-note">At this stage:</p>
-          <ul className="apply-doc-list">
-            <li className="field-ok">✅ No travel is required</li>
-            <li className="field-ok">✅ No registration is required</li>
-            <li className="field-ok">✅ No tuition payment is required</li>
-          </ul>
-          <p className="apply-note">
-            Please wait for official communication before making travel arrangements.
-          </p>
-          <a href={PUBLIC_SITE_URL} className="back-link">← Return to LCC website</a>
         </div>
       </div>
     );
@@ -219,7 +209,7 @@ export default function Apply() {
           </div>
 
           <button type="submit" className="apply-submit" disabled={submitting}>
-            {submitting ? "Submitting…" : "Submit Application"}
+            {submitting ? "Submitting..." : "Submit Application"}
           </button>
         </form>
 

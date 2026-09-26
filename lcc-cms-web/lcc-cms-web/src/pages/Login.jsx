@@ -47,17 +47,18 @@ export default function Login() {
           <p className="login-brand-mark">LCC-CMS</p>
           <h1 className="login-heading">Welcome Back</h1>
           <p className="login-intro">
-            Sign in with your LCC account to access the appropriate College portal.
+            Students sign in with their Student ID. Staff and office users sign in with their ID or college email.
           </p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
-          <label className="login-label" htmlFor="login-email">Email</label>
+          <label className="login-label" htmlFor="login-email">Student ID, Staff ID, or email</label>
           <input
             id="login-email"
-            type="email"
-            name="email"
+            type="text"
+            name="username"
             autoComplete="username"
+            placeholder="LCC-24001, STF-2026-001, or email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

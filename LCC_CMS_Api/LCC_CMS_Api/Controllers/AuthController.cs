@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using LCC_CMS_Api.Models;
 using LCC_CMS_Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -45,34 +46,33 @@ public class AuthController : ControllerBase
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
-        var email = request.Email?.Trim() ?? "";
+        var loginName = request.Email?.Trim() ?? "";
         var password = request.Password ?? "";
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(loginName) || string.IsNullOrWhiteSpace(password))
         {
-            return BadRequest("Email and password are required.");
+            return BadRequest("Username and password are required.");
         }
 
-        var row = await _dbContext.Users
-            .AsNoTracking()
-            .Where(u => u.Email == email)
-            .Select(u => new
-            {
-                u.UserId,
-                u.Email,
-                u.PasswordHash,
-                u.Status,
-                u.Role,
-                u.EntraId,
-                u.MustChangePassword,
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+        var key = loginName.ToLowerInvariant();
+        var row = await FindLoginAsync(
+                u => u.Student != null && u.Student.StudentNumber.ToLower() == key,
+                cancellationToken)
+            ?? await FindLoginAsync(
+                u => u.Staff != null && u.Staff.StaffNumber.ToLower() == key,
+                cancellationToken)
+            ?? await FindLoginAsync(
+                u => u.LoginCode != null && u.LoginCode.ToLower() == key,
+                cancellationToken)
+            ?? await FindLoginAsync(
+                u => u.Email.ToLower() == key,
+                cancellationToken);
 
         if (row is null
             || !string.Equals(row.Status, "Active", StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrEmpty(row.PasswordHash))
         {
-            _logger.LogInformation("Login failed for {Email}", email);
-            return Unauthorized("Invalid email or password.");
+            _logger.LogInformation("Login failed for {LoginName}", loginName);
+            return Unauthorized("Invalid username or password.");
         }
 
         var user = new User
@@ -88,8 +88,8 @@ public class AuthController : ControllerBase
         if (_passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password)
             == PasswordVerificationResult.Failed)
         {
-            _logger.LogInformation("Login failed for {Email}", email);
-            return Unauthorized("Invalid email or password.");
+            _logger.LogInformation("Login failed for {LoginName}", loginName);
+            return Unauthorized("Invalid username or password.");
         }
 
         var expires = DateTime.UtcNow.AddMinutes(
@@ -116,6 +116,37 @@ public class AuthController : ControllerBase
             Role = role,
             ExpiresAt = expires,
         });
+    }
+
+    private Task<LoginMatch?> FindLoginAsync(
+        Expression<Func<User, bool>> predicate,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.Users
+            .AsNoTracking()
+            .Where(predicate)
+            .Select(u => new LoginMatch
+            {
+                UserId = u.UserId,
+                Email = u.Email,
+                PasswordHash = u.PasswordHash,
+                Status = u.Status,
+                Role = u.Role,
+                EntraId = u.EntraId,
+                MustChangePassword = u.MustChangePassword,
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private sealed class LoginMatch
+    {
+        public int UserId { get; set; }
+        public string Email { get; set; } = "";
+        public string? PasswordHash { get; set; }
+        public string Status { get; set; } = "";
+        public string Role { get; set; } = "";
+        public string EntraId { get; set; } = "";
+        public bool MustChangePassword { get; set; }
     }
 
     [AllowAnonymous]

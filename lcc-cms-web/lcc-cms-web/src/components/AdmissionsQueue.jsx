@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import { useMockData, API_ORIGIN } from "../context/MockDataContext";
 import { CONTACT } from "../config/contactConfig";
@@ -41,6 +41,10 @@ function DocumentsCell({ documents }) {
 
 export default function AdmissionsQueue() {
   const { applications, decideApplication, STATUS, isLoading, apiError, refresh } = useMockData();
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
   const [decidingId, setDecidingId] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewError, setPreviewError] = useState(null);
@@ -88,6 +92,14 @@ export default function AdmissionsQueue() {
     return <div className="admissions-empty">Loading applications…</div>;
   }
 
+  const pending = applications.filter((app) => app.status === STATUS.APPLIED);
+  const ordered = [...applications].sort((a, b) => {
+    if (a.status === b.status) return 0;
+    if (a.status === STATUS.APPLIED) return -1;
+    if (b.status === STATUS.APPLIED) return 1;
+    return 0;
+  });
+
   if (applications.length === 0) {
     return (
       <div className="admissions-empty">
@@ -103,6 +115,12 @@ export default function AdmissionsQueue() {
 
   return (
     <>
+    <p className="admissions-review-note">
+      The Registrar reviews applications on this tab. The Principal does not receive them.
+      {pending.length > 0
+        ? ` ${pending.length} application${pending.length === 1 ? "" : "s"} waiting.`
+        : " No applications are waiting."}
+    </p>
     <table className="admissions-table">
       <thead>
         <tr>
@@ -117,7 +135,7 @@ export default function AdmissionsQueue() {
         </tr>
       </thead>
       <tbody>
-        {applications.map((app) => (
+        {ordered.map((app) => (
           <tr key={app.id}>
             <td>{app.fullName}</td>
             <td>{app.programme}</td>

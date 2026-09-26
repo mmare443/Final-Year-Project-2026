@@ -1,3 +1,13 @@
+.admissions-review-note {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  background: #EAF4FB;
+  border: 1px solid #1B4F72;
+  border-radius: 10px;
+  color: #1B4F72;
+  font-size: 14px;
+}
+
 .admissions-empty {
   color: var(--text-light);
   font-size: 13.5px;
