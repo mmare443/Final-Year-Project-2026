@@ -10,9 +10,12 @@ public sealed record OpenGraphMetadata(
     string? Description,
     string? ImageUrl);
 
+public sealed record RemoteImage(byte[] Bytes, string ContentType);
+
 public sealed class OpenGraphMetadataClient
 {
     private const int MaxBytes = 512_000;
+    private const int MaxImageBytes = 2_000_000;
     private readonly HttpClient _http;
     private readonly ILogger<OpenGraphMetadataClient> _logger;
 
@@ -50,8 +53,9 @@ public sealed class OpenGraphMetadataClient
     {
         var oembed = new Uri(
             "https://www.youtube.com/oembed?format=json&url=" + Uri.EscapeDataString(page.ToString()));
-        using var response = await _http.GetAsync(oembed, cancellationToken);
-        if (!response.IsSuccessStatusCode) return null;
+        using var youtubeRequest = new HttpRequestMessage(HttpMethod.Get, oembed);
+        using var response = await SendFollowingAsync(youtubeRequest, cancellationToken);
+        if (response is null || !response.IsSuccessStatusCode) return null;
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
@@ -77,11 +81,15 @@ public sealed class OpenGraphMetadataClient
                 "User-Agent",
                 "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)");
         }
-        using var response = await _http.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        if (!response.IsSuccessStatusCode) return null;
+        using var response = await SendFollowingAsync(request, cancellationToken);
+        if (response is null || !response.IsSuccessStatusCode)
+        {
+            _logger.LogInformation(
+                "Open Graph fetch returned {Status} for {Host}",
+                response is null ? 0 : (int)response.StatusCode,
+                page.Host);
+            return null;
+        }
 
         var html = await ReadLimitedStringAsync(response, cancellationToken);
         if (string.IsNullOrWhiteSpace(html)) return null;
@@ -135,6 +143,154 @@ public sealed class OpenGraphMetadataClient
         if (Uri.TryCreate(image, UriKind.Absolute, out var absolute)) return absolute.ToString();
         if (Uri.TryCreate(page, image, out var resolved)) return resolved.ToString();
         return image;
+    }
+
+    public Task<RemoteImage?> FetchImageAsync(string? url, CancellationToken cancellationToken)
+    {
+        return FetchImageAsync(url, cancellationToken, allowPageResolve: true);
+    }
+
+    private async Task<RemoteImage?> FetchImageAsync(
+        string? url,
+        CancellationToken cancellationToken,
+        bool allowPageResolve)
+    {
+        if (!IsAllowedPublicHttpUrl(url, out var uri)) return null;
+
+        if (IsFacebookPage(uri))
+        {
+            if (!allowPageResolve) return null;
+            var meta = await FetchHtmlOpenGraphAsync(uri, cancellationToken);
+            if (string.IsNullOrWhiteSpace(meta?.ImageUrl)) return null;
+            return await FetchImageAsync(meta.ImageUrl, cancellationToken, allowPageResolve: false);
+        }
+
+        if (!IsEmbeddableImageHost(uri)) return null;
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            request.Headers.TryAddWithoutValidation("Accept", "image/avif,image/webp,image/*,*/*");
+            if (IsFacebookHost(uri))
+            {
+                request.Headers.TryAddWithoutValidation(
+                    "User-Agent",
+                    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)");
+            }
+
+            using var response = await SendFollowingAsync(request, cancellationToken);
+            if (response is null || !response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation(
+                    "News image fetch returned {Status} for {Host}",
+                    response is null ? 0 : (int)response.StatusCode,
+                    uri.Host);
+                return null;
+            }
+
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var limited = new LimitedReadStream(stream, MaxImageBytes);
+            using var buffer = new MemoryStream();
+            await limited.CopyToAsync(buffer, cancellationToken);
+            var bytes = buffer.ToArray();
+            if (bytes.Length == 0) return null;
+            if (!contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                contentType = SniffImageType(bytes) ?? "";
+            }
+
+            if (!contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return new RemoteImage(bytes, contentType);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "News image fetch skipped for {Host}", uri.Host);
+            return null;
+        }
+    }
+
+    public static bool IsEmbeddableImageHost(string? url)
+    {
+        return IsAllowedPublicHttpUrl(url, out var uri) && IsEmbeddableImageHost(uri);
+    }
+
+    private async Task<HttpResponseMessage?> SendFollowingAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        var current = request;
+        for (var hop = 0; hop < 5; hop++)
+        {
+            var response = await _http.SendAsync(
+                current,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            var status = (int)response.StatusCode;
+            if (status is not (301 or 302 or 303 or 307 or 308))
+            {
+                return response;
+            }
+
+            var next = response.Headers.Location;
+            response.Dispose();
+            if (next is null) return null;
+            if (!next.IsAbsoluteUri)
+            {
+                next = new Uri(current.RequestUri!, next);
+            }
+
+            if (!IsAllowedPublicHttpUrl(next.ToString(), out var safe)) return null;
+            var follow = new HttpRequestMessage(HttpMethod.Get, safe);
+            foreach (var header in current.Headers)
+            {
+                follow.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            if (!ReferenceEquals(current, request)) current.Dispose();
+            current = follow;
+        }
+
+        current.Dispose();
+        return null;
+    }
+
+    private static bool IsEmbeddableImageHost(Uri uri)
+    {
+        var host = uri.Host;
+        return host.Equals("lookaside.fbsbx.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".fbcdn.net", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".fbsbx.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("i.ytimg.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".ytimg.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFacebookPage(Uri uri)
+    {
+        return IsFacebookHost(uri) && !IsEmbeddableImageHost(uri);
+    }
+
+    private static bool IsFacebookHost(Uri uri)
+    {
+        var host = uri.Host;
+        return host.Contains("facebook.com", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fb.com", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fb.watch", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fbsbx.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".fbcdn.net", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? SniffImageType(byte[] bytes)
+    {
+        if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return "image/jpeg";
+        if (bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return "image/png";
+        if (bytes.Length >= 6 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return "image/gif";
+        if (bytes.Length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) return "image/webp";
+        return null;
     }
 
     private static bool IsYouTube(Uri uri)
@@ -228,5 +384,60 @@ public sealed class OpenGraphMetadataClient
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+}
+
+public static class FacebookLinkMetadata
+{
+    public const string StoredFilePrefix = "news-file/";
+
+    public static bool IsStoredFile(string? thumbnail)
+    {
+        return !string.IsNullOrWhiteSpace(thumbnail)
+            && thumbnail.Trim().StartsWith(StoredFilePrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string? StorageKey(string? thumbnail)
+    {
+        if (!IsStoredFile(thumbnail)) return null;
+        var key = thumbnail!.Trim()[StoredFilePrefix.Length..];
+        return string.IsNullOrWhiteSpace(key) ? null : key;
+    }
+
+    public static bool IsFacebook(string? pageUrl)
+    {
+        if (!Uri.TryCreate(pageUrl?.Trim(), UriKind.Absolute, out var uri)) return false;
+        return IsFacebookHost(uri.Host);
+    }
+
+    public static bool IsPageLevel(string? pageUrl)
+    {
+        if (!IsFacebook(pageUrl)) return false;
+        if (!Uri.TryCreate(pageUrl?.Trim(), UriKind.Absolute, out var uri)) return false;
+
+        var path = uri.AbsolutePath;
+        if (path.Contains("/groups/", StringComparison.OrdinalIgnoreCase)) return true;
+        if (path.Contains("/share/g/", StringComparison.OrdinalIgnoreCase)) return true;
+        if (path.Contains("/photo", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(path, "/photo.php", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    public static bool IsRemoteFacebookImage(string? url)
+    {
+        if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri)) return false;
+        var host = uri.Host;
+        return host.Contains("facebook.com", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fb.com", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fb.watch", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fbsbx.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".fbcdn.net", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFacebookHost(string host)
+    {
+        return host.Contains("facebook.com", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fb.com", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("fb.watch", StringComparison.OrdinalIgnoreCase);
     }
 }

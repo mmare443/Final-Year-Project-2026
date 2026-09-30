@@ -74,11 +74,28 @@ function detectSource(url) {
     }
 }
 
+function isStoredNewsFile(url) {
+    return String(url || "").startsWith("news-file/");
+}
+
+function isFacebookRemoteImage(url) {
+    return /facebook\.com|fb\.com|fb\.watch|fbsbx\.com|fbcdn\.net/i.test(String(url || ""));
+}
+
+function cardThumbnail(article) {
+    const thumb = String(article.thumbnailUrl || "");
+    if (isStoredNewsFile(thumb) && article.id && typeof window.collegeApiUrl === "function") {
+        return window.collegeApiUrl(`/api/news/${article.id}/thumbnail`);
+    }
+    if (isFacebookRemoteImage(thumb)) return "";
+    return thumb;
+}
+
 function photoWithFallback(primary, secondary) {
     const first = resolveImageUrl(primary || secondary || "");
     const second = primary && secondary ? resolveImageUrl(secondary) : siteImage(DEFAULT_NEWS_IMAGE);
     const last = siteImage(DEFAULT_NEWS_IMAGE);
-    const contain = !/^https?:\/\//i.test(String(primary || "").trim());
+    const contain = Boolean(primary) && !/^https?:\/\//i.test(String(primary).trim());
     const cls = contain ? "news-thumb news-thumb-logo" : "news-thumb";
     return `<img class="${cls}" src="${escapeHtml(first)}" alt="" data-fallback="${escapeHtml(second)}" data-default="${escapeHtml(last)}" onerror="window.__lccNewsImgFallback(this)">`;
 }
@@ -135,16 +152,20 @@ function normalizeArticle(raw) {
 function renderCard(article, compact) {
     const when = escapeHtml(publishedLabel(article.publishedAt));
     if (article.isExternal) {
-        const displayTitle = article.sourceTitle || article.title;
-        const subtitle = escapeHtml(article.sourceSubtitle || article.summary || "");
+        const displayTitle = article.title || article.sourceTitle;
+        const subtitleText = article.sourceName === "Facebook"
+            ? (article.sourceSubtitle || "")
+            : (article.sourceSubtitle || article.summary || "");
+        const subtitle = escapeHtml(subtitleText);
         const sourceLabel = escapeHtml(article.sourceName || "External");
         const logo = article.sourceLogoUrl
             ? `<img class="news-source-logo" src="${escapeHtml(resolveImageUrl(article.sourceLogoUrl))}" alt="">`
             : "";
+        const photo = cardThumbnail(article);
         return [
             '<article class="info-card news-card news-card-external">',
             '<div class="news-media">',
-            photoWithFallback(article.thumbnailUrl, article.sourceLogoUrl),
+            photoWithFallback(photo, photo ? article.sourceLogoUrl : ""),
             `<div class="news-source-brand">${logo}<span>${sourceLabel}</span></div>`,
             "</div>",
             `<time class="card-meta" datetime="${escapeHtml(article.publishedAt || "")}">${when || "News"}</time>`,

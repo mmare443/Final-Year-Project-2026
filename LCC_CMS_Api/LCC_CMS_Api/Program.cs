@@ -187,6 +187,10 @@ builder.Services.AddHttpClient<LCC_CMS_Api.Services.OpenGraphMetadataClient>(cli
     client.DefaultRequestHeaders.TryAddWithoutValidation(
         "User-Agent",
         "Mozilla/5.0 (compatible; LCC-CMS-NewsPreview/1.0)");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AllowAutoRedirect = false,
 });
 builder.Services.AddSingleton<LCC_CMS_Api.Services.IEntraUserProvisioner, LCC_CMS_Api.Services.GraphEntraUserProvisioner>();
 

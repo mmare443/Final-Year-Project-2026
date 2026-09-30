@@ -30,6 +30,28 @@ const SOURCE_RULES = [
   { test: /nbc\.com\.pg|nbcpng/i, name: "NBC", logo: "images/college/news/logos/nbc.svg" },
 ];
 
+function isStoredNewsFile(url) {
+  return String(url || "").startsWith("news-file/");
+}
+
+function isFacebookRemoteImage(url) {
+  return /facebook\.com|fb\.com|fb\.watch|fbsbx\.com|fbcdn\.net/i.test(String(url || ""));
+}
+
+function isFacebookLink(url) {
+  return /facebook\.com|fb\.com|fb\.watch/i.test(String(url || ""));
+}
+
+function thumbnailPreviewSrc(url, articleId) {
+  if (isStoredNewsFile(url) && articleId) {
+    return `${API_ORIGIN}/api/news/${articleId}/thumbnail`;
+  }
+  if (/fbsbx\.com|fbcdn\.net/i.test(String(url || ""))) {
+    return `${API_ORIGIN}/api/news/media?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 function detectSource(url) {
   const value = String(url || "");
   return SOURCE_RULES.find((rule) => rule.test.test(value)) || null;
@@ -65,7 +87,9 @@ function toPayload(form) {
       sourceSubtitle: form.sourceSubtitle || "",
       sourceLogoUrl: form.sourceLogoUrl || detected?.logo || null,
       sourceTitle: form.sourceTitle || "",
-      thumbnailUrl: form.thumbnailUrl || null,
+      thumbnailUrl: isStoredNewsFile(form.thumbnailUrl)
+        ? form.thumbnailUrl
+        : (isFacebookRemoteImage(form.thumbnailUrl) ? null : (form.thumbnailUrl || null)),
       externalUrl: form.externalUrl,
       isPublished: Boolean(form.isPublished),
     };
@@ -107,6 +131,8 @@ export default function NewsManagement() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  const [postPhoto, setPostPhoto] = useState(null);
+  const [postPhotoPreview, setPostPhotoPreview] = useState("");
 
   const loadNews = useCallback(async () => {
     setIsLoading(true);
@@ -129,6 +155,8 @@ export default function NewsManagement() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setPostPhoto(null);
+    setPostPhotoPreview("");
     setSaveError(null);
     setFormOpen(true);
   };
@@ -136,6 +164,8 @@ export default function NewsManagement() {
   const openEdit = (row) => {
     setEditingId(row.newsId ?? row.id);
     setForm(toForm(row));
+    setPostPhoto(null);
+    setPostPhotoPreview("");
     setSaveError(null);
     setFormOpen(true);
   };
@@ -158,6 +188,14 @@ export default function NewsManagement() {
       );
       if (!res.ok) return;
       const data = await res.json();
+      if (data.pageLevelMetadata) {
+        setForm((prev) => ({
+          ...prev,
+          sourceName: data.sourceName || prev.sourceName,
+          sourceLogoUrl: data.sourceLogoUrl || prev.sourceLogoUrl,
+        }));
+        return;
+      }
       setForm((prev) => ({
         ...prev,
         sourceName: data.sourceName || prev.sourceName,
@@ -182,6 +220,23 @@ export default function NewsManagement() {
       }
     );
     if (!res.ok) throw new Error(await readApiError(res));
+    return res.json();
+  };
+
+  const uploadPostPhoto = async (id, file) => {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await apiFetch(`${API_ORIGIN}/api/news/${id}/post-photo`, {
+      method: "POST",
+      body,
+    });
+    if (!res.ok) throw new Error(await readApiError(res));
+    return res.json();
+  };
+
+  const choosePostPhoto = (file) => {
+    setPostPhoto(file || null);
+    setPostPhotoPreview(file ? URL.createObjectURL(file) : "");
   };
 
   const handleSubmit = async (e) => {
@@ -189,7 +244,40 @@ export default function NewsManagement() {
     setSaving(true);
     setSaveError(null);
     try {
-      await saveArticle(toPayload(form));
+      if (form.isExternal && isFacebookLink(form.externalUrl)) {
+        if (!form.title.trim()) throw new Error("Title is required for a Facebook story.");
+        if (!form.sourceSubtitle.trim()) throw new Error("Subtitle is required for a Facebook story.");
+        const hasPhoto = Boolean(postPhoto) || isStoredNewsFile(form.thumbnailUrl);
+        if (form.isPublished && !hasPhoto) {
+          throw new Error("Upload the Facebook post photo before publishing.");
+        }
+      } else if (form.isExternal && !form.title.trim()) {
+        throw new Error("Title is required.");
+      }
+      const payload = toPayload(form);
+      const deferPublish = Boolean(
+        form.isPublished
+        && postPhoto
+        && isFacebookLink(form.externalUrl)
+        && !isStoredNewsFile(form.thumbnailUrl)
+      );
+      if (deferPublish) payload.isPublished = false;
+      const saved = await saveArticle(payload);
+      const savedId = saved?.newsId ?? saved?.id ?? editingId;
+      let uploaded = null;
+      if (postPhoto && savedId != null) {
+        uploaded = await uploadPostPhoto(savedId, postPhoto);
+      }
+      if (deferPublish && savedId != null) {
+        await saveArticle(
+          toPayload({
+            ...form,
+            thumbnailUrl: uploaded?.thumbnailUrl || form.thumbnailUrl,
+            isPublished: true,
+          }),
+          savedId
+        );
+      }
       setFormOpen(false);
       setForm(emptyForm);
       setEditingId(null);
@@ -204,8 +292,12 @@ export default function NewsManagement() {
   const togglePublished = async (row) => {
     setSaveError(null);
     try {
+      const publishing = !row.isPublished;
+      if (publishing && isFacebookLink(row.externalUrl) && !isStoredNewsFile(row.thumbnailUrl)) {
+        throw new Error("Upload the Facebook post photo before publishing.");
+      }
       await saveArticle(
-        toPayload({ ...toForm(row), isPublished: !row.isPublished }),
+        toPayload({ ...toForm(row), isPublished: publishing }),
         row.newsId ?? row.id
       );
       await loadNews();
@@ -229,9 +321,10 @@ export default function NewsManagement() {
   return (
     <DashboardLayout title="News Management" navItems={MANAGEMENT_NAV}>
       <p style={{ color: "var(--text-light)", fontSize: 13, marginBottom: 18 }}>
-        Internal college articles use a photo and full text. External media stories
-        (Facebook, YouTube, Post Courier, The National, EMTV, NBC) use a source
-        logo and Visit Source — no college image is required.
+        Internal college articles use a photo and full text. A Facebook story needs a
+        title, a subtitle, and an uploaded post photo. The Facebook link is only
+        the Visit Source button. YouTube stories still use the video picture,
+        title, and subtitle from YouTube.
       </p>
 
       {apiError && <div className="records-error">{apiError}</div>}
@@ -270,7 +363,7 @@ export default function NewsManagement() {
               <input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                required={!form.isExternal}
+                required
               />
             </label>
             {form.isExternal ? (
@@ -299,7 +392,8 @@ export default function NewsManagement() {
                     value={form.sourceSubtitle}
                     onChange={(e) => setForm({ ...form, sourceSubtitle: e.target.value })}
                     maxLength={300}
-                    placeholder="og:description"
+                    required={isFacebookLink(form.externalUrl)}
+                    placeholder={isFacebookLink(form.externalUrl) ? "Required for Facebook" : "Post text"}
                   />
                 </label>
                 <label className="news-span-2">Source title
@@ -307,7 +401,21 @@ export default function NewsManagement() {
                     value={form.sourceTitle}
                     onChange={(e) => setForm({ ...form, sourceTitle: e.target.value })}
                     maxLength={500}
-                    placeholder="Filled from og:title when available"
+                    placeholder="Optional. The card uses Title when this is empty."
+                  />
+                </label>
+                {isFacebookLink(form.externalUrl) ? (
+                  <p className="news-span-2 news-link-note">
+                    Type the title and subtitle, and upload the post photo.
+                    The Facebook link is used only for Visit Source.
+                    The story cannot be published until the photo is uploaded.
+                  </p>
+                ) : null}
+                <label className="news-span-2">Post photo
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => choosePostPhoto(e.target.files?.[0])}
                   />
                 </label>
                 <label className="news-span-2">Thumbnail URL
@@ -315,12 +423,15 @@ export default function NewsManagement() {
                     value={form.thumbnailUrl}
                     onChange={(e) => setForm({ ...form, thumbnailUrl: e.target.value })}
                     maxLength={1000}
-                    placeholder="Filled from og:image when available"
+                    placeholder="Filled for YouTube. Upload a photo for Facebook."
                   />
                 </label>
-                {form.thumbnailUrl ? (
+                {postPhotoPreview || (form.thumbnailUrl && !isFacebookRemoteImage(form.thumbnailUrl)) ? (
                   <div className="news-span-2 news-thumb-preview">
-                    <img src={form.thumbnailUrl} alt="" />
+                    <img
+                      src={postPhotoPreview || thumbnailPreviewSrc(form.thumbnailUrl, editingId)}
+                      alt=""
+                    />
                   </div>
                 ) : null}
                 <label className="news-span-2">Source logo URL (optional)

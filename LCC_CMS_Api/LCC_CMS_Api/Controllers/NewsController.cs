@@ -15,18 +15,27 @@ namespace LCC_CMS_Api.Controllers;
 [Route("api/news")]
 public class NewsController : ControllerBase
 {
+    private const long MaxPostPhotoBytes = 2_000_000;
+    private static readonly HashSet<string> PostPhotoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".webp",
+    };
+
     private readonly LccCmsDbContext _dbContext;
     private readonly ICurrentUser _currentUser;
     private readonly OpenGraphMetadataClient _openGraph;
+    private readonly IFileStorage _fileStorage;
 
     public NewsController(
         LccCmsDbContext dbContext,
         ICurrentUser currentUser,
-        OpenGraphMetadataClient openGraph)
+        OpenGraphMetadataClient openGraph,
+        IFileStorage fileStorage)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
         _openGraph = openGraph;
+        _fileStorage = fileStorage;
     }
 
     [AllowAnonymous]
@@ -70,7 +79,19 @@ public class NewsController : ControllerBase
         }
 
         var detected = NewsSourceCatalog.Detect(url);
+        if (FacebookLinkMetadata.IsFacebook(url))
+        {
+            return Ok(new NewsPreviewRecord
+            {
+                ExternalUrl = url.Trim(),
+                SourceName = detected?.Name,
+                SourceLogoUrl = detected?.LogoUrl,
+                PageLevelMetadata = true,
+            });
+        }
+
         var meta = await _openGraph.FetchAsync(url, cancellationToken);
+        var remoteImage = FacebookLinkMetadata.IsRemoteFacebookImage(meta?.ImageUrl) ? null : meta?.ImageUrl;
         return Ok(new NewsPreviewRecord
         {
             ExternalUrl = url.Trim(),
@@ -78,8 +99,98 @@ public class NewsController : ControllerBase
             SourceLogoUrl = detected?.LogoUrl,
             SourceTitle = meta?.Title,
             SourceSubtitle = meta?.Description,
-            ThumbnailUrl = meta?.ImageUrl,
+            ThumbnailUrl = remoteImage,
+            PageLevelMetadata = false,
         });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{id:int}/thumbnail")]
+    public async Task<IActionResult> Thumbnail(int id, CancellationToken cancellationToken)
+    {
+        var article = await ArticleGraph()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.NewsId == id, cancellationToken);
+        if (article is null) return NotFound();
+        if (!article.IsPublished && !await CanManageAsync(cancellationToken)) return NotFound();
+
+        var stored = await OpenStoredThumbnailAsync(article.ThumbnailUrl, cancellationToken);
+        if (FacebookLinkMetadata.IsStoredFile(article.ThumbnailUrl))
+        {
+            if (stored is null) return NotFound();
+            Response.Headers.CacheControl = "public,max-age=86400";
+            return File(stored.Value.Stream, stored.Value.ContentType);
+        }
+
+        if (FacebookLinkMetadata.IsFacebook(article.ExternalUrl))
+        {
+            return NotFound();
+        }
+
+        var image = await _openGraph.FetchImageAsync(article.ThumbnailUrl, cancellationToken);
+        if (image is null)
+        {
+            image = await _openGraph.FetchImageAsync(article.ExternalUrl, cancellationToken);
+        }
+
+        if (image is null) return NotFound();
+        Response.Headers.CacheControl = "public,max-age=86400";
+        return File(image.Bytes, image.ContentType);
+    }
+
+    [Authorize(Policy = "PrincipalAdminOnly")]
+    [HttpPost("{id:int}/post-photo")]
+    [RequestSizeLimit(MaxPostPhotoBytes)]
+    public async Task<ActionResult<NewsArticleRecord>> UploadPostPhoto(
+        int id,
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0) return BadRequest("Choose the post photo.");
+        if (file.Length > MaxPostPhotoBytes) return BadRequest("The post photo must be 2 MB or smaller.");
+
+        var extension = Path.GetExtension(file.FileName);
+        if (!PostPhotoExtensions.Contains(extension))
+        {
+            return BadRequest("Use a JPG, PNG, or WebP photo.");
+        }
+
+        var article = await ArticleGraph().FirstOrDefaultAsync(a => a.NewsId == id, cancellationToken);
+        if (article is null) return NotFound();
+
+        var previousKey = FacebookLinkMetadata.StorageKey(article.ThumbnailUrl);
+        await using var input = file.OpenReadStream();
+        var stored = await _fileStorage.SaveAsync(
+            input,
+            "news",
+            extension,
+            file.FileName,
+            file.ContentType,
+            cancellationToken);
+        article.ThumbnailUrl = FacebookLinkMetadata.StoredFilePrefix + stored.StorageKey;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(previousKey))
+        {
+            await _fileStorage.DeleteAsync(previousKey, cancellationToken);
+        }
+
+        return Ok(ToRecord(article));
+    }
+
+    [AllowAnonymous]
+    [HttpGet("media")]
+    public async Task<IActionResult> Media([FromQuery] string url, CancellationToken cancellationToken)
+    {
+        if (!OpenGraphMetadataClient.IsEmbeddableImageHost(url))
+        {
+            return BadRequest("That image host is not allowed.");
+        }
+
+        var image = await _openGraph.FetchImageAsync(url, cancellationToken);
+        if (image is null) return NotFound();
+        Response.Headers.CacheControl = "public,max-age=86400";
+        return File(image.Bytes, image.ContentType);
     }
 
     [AllowAnonymous]
@@ -188,6 +299,35 @@ public class NewsController : ControllerBase
         return Ok(record);
     }
 
+    private async Task<(Stream Stream, string ContentType)?> OpenStoredThumbnailAsync(
+        string? thumbnail,
+        CancellationToken cancellationToken)
+    {
+        var key = FacebookLinkMetadata.StorageKey(thumbnail);
+        if (key is null) return null;
+
+        try
+        {
+            var stream = await _fileStorage.OpenReadAsync(key, cancellationToken);
+            return (stream, ContentTypeFor(key));
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private static string ContentTypeFor(string storageKey)
+    {
+        return Path.GetExtension(storageKey).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            _ => "image/jpeg",
+        };
+    }
+
     private async Task<bool> CanManageAsync(CancellationToken cancellationToken)
     {
         if (!User.Identity?.IsAuthenticated ?? true) return false;
@@ -256,12 +396,23 @@ public class NewsController : ControllerBase
     {
         if (!request.IsExternal) return;
 
+        if (FacebookLinkMetadata.IsFacebook(request.ExternalUrl))
+        {
+            if (!FacebookLinkMetadata.IsStoredFile(request.ThumbnailUrl))
+            {
+                request.ThumbnailUrl = null;
+            }
+
+            return;
+        }
+
         var meta = await _openGraph.FetchAsync(request.ExternalUrl, cancellationToken);
         if (meta is null) return;
 
+        var image = FacebookLinkMetadata.IsRemoteFacebookImage(meta.ImageUrl) ? null : meta.ImageUrl;
         request.SourceTitle = FirstNonEmpty(request.SourceTitle, meta.Title);
         request.SourceSubtitle = FirstNonEmpty(request.SourceSubtitle, request.Summary, meta.Description);
-        request.ThumbnailUrl = FirstNonEmpty(request.ThumbnailUrl, meta.ImageUrl);
+        request.ThumbnailUrl = FirstNonEmpty(request.ThumbnailUrl, image);
         request.Title = FirstNonEmpty(request.Title, meta.Title) ?? request.Title;
         request.Summary = FirstNonEmpty(request.Summary, meta.Description) ?? request.Summary ?? "";
     }
@@ -308,6 +459,24 @@ public class NewsController : ControllerBase
             if (!string.IsNullOrWhiteSpace(request.SourceSubtitle) && request.SourceSubtitle.Trim().Length > 300)
             {
                 return "Source subtitle must be 300 characters or fewer.";
+            }
+
+            if (FacebookLinkMetadata.IsFacebook(request.ExternalUrl) && request.IsPublished)
+            {
+                if (string.IsNullOrWhiteSpace(request.Title))
+                {
+                    return "Title is required for a Facebook story.";
+                }
+
+                if (string.IsNullOrWhiteSpace(request.SourceSubtitle))
+                {
+                    return "Subtitle is required for a Facebook story.";
+                }
+
+                if (!FacebookLinkMetadata.IsStoredFile(request.ThumbnailUrl))
+                {
+                    return "Upload the Facebook post photo before publishing.";
+                }
             }
 
             if (!IsAllowedImageUrl(request.SourceLogoUrl, out var logoError)) return logoError;
@@ -485,4 +654,5 @@ public class NewsPreviewRecord
     public string? SourceTitle { get; set; }
     public string? SourceSubtitle { get; set; }
     public string? ThumbnailUrl { get; set; }
+    public bool PageLevelMetadata { get; set; }
 }

@@ -17,7 +17,15 @@ public static class NewsMetadataBackfill
             rows = await db.NewsArticles
                 .Where(a => a.IsExternal
                     && a.ExternalUrl != null
-                    && (a.ThumbnailUrl == null || a.SourceLogoUrl == null || a.SourceTitle == null))
+                    && (a.ThumbnailUrl == null
+                        || a.SourceLogoUrl == null
+                        || a.SourceTitle == null
+                        || a.SourceSubtitle == null
+                        || a.ThumbnailUrl.Contains("facebook.com/")
+                        || a.ThumbnailUrl.Contains("fbsbx.com")
+                        || a.ThumbnailUrl.Contains("fbcdn.net")
+                        || a.ExternalUrl.Contains("facebook.com")
+                        || a.ExternalUrl.Contains("fb.com")))
                 .Take(25)
                 .ToListAsync();
         }
@@ -30,6 +38,36 @@ public static class NewsMetadataBackfill
         var changed = 0;
         foreach (var row in rows)
         {
+            if (FacebookLinkMetadata.IsStoredFile(row.ThumbnailUrl))
+            {
+                continue;
+            }
+
+            if (FacebookLinkMetadata.IsFacebook(row.ExternalUrl))
+            {
+                var facebookChanged = false;
+                if (FacebookLinkMetadata.IsRemoteFacebookImage(row.ThumbnailUrl))
+                {
+                    row.ThumbnailUrl = null;
+                    facebookChanged = true;
+                }
+
+                if (IsCollegeMotto(row.SourceSubtitle))
+                {
+                    row.SourceSubtitle = null;
+                    facebookChanged = true;
+                }
+
+                if (IsCollegeMotto(row.Summary))
+                {
+                    row.Summary = row.SourceName ?? "";
+                    facebookChanged = true;
+                }
+
+                if (facebookChanged) changed++;
+                continue;
+            }
+
             var detected = NewsSourceCatalog.Detect(row.ExternalUrl);
             var updated = false;
 
@@ -68,7 +106,9 @@ public static class NewsMetadataBackfill
                 metadataUpdated = true;
             }
 
-            if (string.IsNullOrWhiteSpace(row.ThumbnailUrl) && !string.IsNullOrWhiteSpace(meta.ImageUrl))
+            if (string.IsNullOrWhiteSpace(row.ThumbnailUrl)
+                && !string.IsNullOrWhiteSpace(meta.ImageUrl)
+                && !FacebookLinkMetadata.IsRemoteFacebookImage(meta.ImageUrl))
             {
                 row.ThumbnailUrl = Trim(meta.ImageUrl, 1000);
                 metadataUpdated = true;
@@ -82,6 +122,12 @@ public static class NewsMetadataBackfill
             await db.SaveChangesAsync();
             logger.LogInformation("Backfilled Open Graph metadata for {Count} external news stories.", changed);
         }
+    }
+
+    private static bool IsCollegeMotto(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && value.Contains("By Faith in God my potential manifests here", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Trim(string value, int max)
