@@ -69,11 +69,15 @@ body {
 }
 
 .print-photo {
+  display: block;
+  visibility: visible;
   width: 28mm;
   height: 32mm;
   object-fit: cover;
   border: 1px solid #444;
   background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .print-photo-fallback {

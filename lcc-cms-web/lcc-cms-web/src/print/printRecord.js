@@ -1,7 +1,12 @@
-import { API_ORIGIN, apiFetch } from "../api";
 import { CONTACT } from "../config/contactConfig";
 import logoUrl from "../assets/lcc-logo.png";
 import printCss from "./recordPrint.css?raw";
+import {
+  displayUrlToDataUrl,
+  fetchAuthorizedPhotoDataUrl,
+  ownProfilePhotoRequestUrl,
+  userProfilePhotoRequestUrl,
+} from "../profilePhoto";
 
 export function escapePrintHtml(value) {
   return String(value ?? "")
@@ -23,20 +28,11 @@ export function printedAtLabel(date = new Date()) {
 
 export async function fetchUserPhotoDataUrl(userId) {
   if (userId == null || userId === "") return null;
-  try {
-    const res = await apiFetch(`${API_ORIGIN}/api/profile/photo/${encodeURIComponent(userId)}`);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    if (!blob || blob.size === 0) return null;
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
+  return fetchAuthorizedPhotoDataUrl(userProfilePhotoRequestUrl(userId));
+}
+
+export async function fetchOwnPhotoDataUrl() {
+  return fetchAuthorizedPhotoDataUrl(ownProfilePhotoRequestUrl());
 }
 
 export function buildRecordPrintHtml({
@@ -92,12 +88,6 @@ export function buildRecordPrintHtml({
       ${escapePrintHtml(CONTACT.postalOneLine)} · ${escapePrintHtml(CONTACT.phone)} · ${escapePrintHtml(CONTACT.primaryEmail)}
     </footer>
   </article>
-  <script>
-    window.addEventListener("load", function () {
-      window.focus();
-      window.print();
-    });
-  <\/script>
 </body>
 </html>`;
 }
@@ -123,8 +113,12 @@ export function staffProfilePrintFields(row) {
   ];
 }
 
-export async function printStaffProfile(row, printedBy) {
-  const photoDataUrl = await fetchUserPhotoDataUrl(row.staffId ?? row.userId);
+export async function printStaffProfile(row, printedBy, options = {}) {
+  const displayed = await displayUrlToDataUrl(options.photoSrc);
+  const photoDataUrl = displayed
+    || (options.own
+      ? await fetchOwnPhotoDataUrl()
+      : await fetchUserPhotoDataUrl(row.userId ?? row.staffId));
   const html = buildRecordPrintHtml({
     documentTitle: "Staff Profile Report",
     photoDataUrl,
@@ -141,7 +135,7 @@ export function printHtmlDocument(html) {
   const iframe = document.createElement("iframe");
   iframe.className = "record-print-frame";
   iframe.setAttribute("aria-hidden", "true");
-  iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
+  iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:800px;height:1100px;border:0;";
   document.body.appendChild(iframe);
 
   const frameWindow = iframe.contentWindow;
@@ -160,20 +154,30 @@ export function printHtmlDocument(html) {
   };
 
   frameWindow.onafterprint = cleanup;
+  let started = false;
   const trigger = () => {
-    try {
-      frameWindow.focus();
-      frameWindow.print();
-    } catch {
-      cleanup();
+    if (started) return;
+    const go = () => {
+      if (started) return;
+      started = true;
+      try {
+        frameWindow.focus();
+        frameWindow.print();
+      } catch {
+        cleanup();
+      }
+    };
+    const photo = frameDoc.querySelector(".print-photo");
+    if (!photo || photo.complete) {
+      window.setTimeout(go, 50);
+      return;
     }
+    photo.addEventListener("load", () => window.setTimeout(go, 50), { once: true });
+    photo.addEventListener("error", () => window.setTimeout(go, 50), { once: true });
   };
 
-  if (frameDoc.readyState === "complete") {
-    window.setTimeout(trigger, 80);
-  } else {
-    iframe.onload = trigger;
-  }
+  iframe.onload = trigger;
+  window.setTimeout(trigger, 300);
 
   window.setTimeout(cleanup, 120000);
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { API_ORIGIN, apiFetch, setAccessToken, getAccessToken, clearAccessToken } from "../api";
+import { fetchAuthorizedPhotoBlob, ownProfilePhotoRequestUrl } from "../profilePhoto";
 
 /**
  * Auth context — local JWT (email/password), not Microsoft Entra / MSAL.
@@ -83,12 +84,11 @@ export function MockAuthProvider({ children }) {
 
   const loadProfilePhoto = useCallback(async () => {
     try {
-      const res = await apiFetch(`${API_ORIGIN}/api/profile/photo`);
-      if (!res.ok) {
+      const blob = await fetchAuthorizedPhotoBlob(ownProfilePhotoRequestUrl());
+      if (!blob) {
         clearAvatar();
         return;
       }
-      const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       if (avatarObjectUrlRef.current) {
         URL.revokeObjectURL(avatarObjectUrlRef.current);
@@ -208,7 +208,11 @@ export function MockAuthProvider({ children }) {
   const refreshMe = async () => {
     const res = await apiFetch(`${API_ORIGIN}/api/me`);
     if (!res.ok) return;
-    applyMe(await res.json());
+    const me = await res.json();
+    applyMe(me);
+    if (readMustChangeFlag(me) !== true) {
+      await loadProfilePhoto();
+    }
   };
 
   const uploadProfilePhoto = async (file) => {

@@ -45,7 +45,7 @@ function contactFromStaff(staff) {
   };
 }
 
-export default function StaffSelfProfile({ title = "My Profile", navItems = [], fallbackPhoto = null }) {
+export default function StaffSelfProfile({ title = "My Profile", navItems = [] }) {
   const { avatarUrl, uploadProfilePhoto, displayName, refreshMe } = useMockAuth();
   const [me, setMe] = useState(null);
   const [staff, setStaff] = useState(null);
@@ -160,10 +160,13 @@ export default function StaffSelfProfile({ title = "My Profile", navItems = [], 
 
   const handlePrint = async () => {
     if (!staff) return;
-    await printStaffProfile(staff, displayName);
+    await printStaffProfile(staff, displayName, {
+      own: true,
+      photoSrc: pendingPreview || avatarUrl || null,
+    });
   };
 
-  const photoSrc = pendingPreview || avatarUrl || fallbackPhoto;
+  const photoSrc = pendingPreview || avatarUrl;
   const initial = avatarInitials(staff?.fullName || me?.displayName || displayName);
 
   return (
