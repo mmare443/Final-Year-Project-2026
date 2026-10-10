@@ -29,6 +29,16 @@ public partial class Admission
 
     public DateTime CreatedAt { get; set; }
 
+    public string? SelectionDecision { get; set; }
+
+    public string? DecisionRemark { get; set; }
+
+    public string? DecisionOverrideReason { get; set; }
+
+    public int? DecisionRecordedBy { get; set; }
+
+    public DateTime? DecisionRecordedAt { get; set; }
+
     public virtual Programme Programme { get; set; } = null!;
 
     public virtual ICollection<AdmissionDocument> AdmissionDocuments { get; set; } = new List<AdmissionDocument>();

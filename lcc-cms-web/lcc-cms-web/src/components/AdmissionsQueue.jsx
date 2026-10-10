@@ -1,81 +1,49 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch } from "../api";
 import { useMockData, API_ORIGIN } from "../context/MockDataContext";
 import { CONTACT } from "../config/contactConfig";
 import "./AdmissionsQueue.css";
 
-function DocumentsCell({ documents }) {
-  const [expanded, setExpanded] = useState(false);
+function shortRemark(value) {
+  const text = (value || "").trim();
+  if (!text) return "—";
+  return text.length > 90 ? `${text.slice(0, 87)}…` : text;
+}
 
-  if (!documents || documents.length === 0) {
-    return <span className="admissions-decided">None</span>;
-  }
-
-  return (
-    <div className="documents-cell">
-      <button
-        className="documents-toggle"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        {documents.length} document{documents.length !== 1 ? "s" : ""} {expanded ? "▲" : "▼"}
-      </button>
-      {expanded && (
-        <ul className="documents-list">
-          {documents.map((doc) => (
-            <li key={doc.path}>
-              <a
-                href={`${API_ORIGIN}${doc.path}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="document-link"
-              >
-                {doc.type}
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+function reviewLine(app) {
+  const total = app.documentCount || 0;
+  if (total === 0) return "No documents";
+  const parts = [
+    `${total} document${total === 1 ? "" : "s"}`,
+    `${app.reviewedCount || 0} reviewed`,
+    `${app.acceptableCount || 0} acceptable`,
+    `${app.provisionalCount || 0} provisionally acceptable`,
+    `${app.belowStandardCount || 0} does not meet standard`,
+  ];
+  if (app.missingCount) parts.push(`${app.missingCount} missing`);
+  return parts.join(" · ");
 }
 
 export default function AdmissionsQueue() {
-  const { applications, decideApplication, STATUS, isLoading, apiError, refresh } = useMockData();
+  const { applications, STATUS, isLoading, apiError, refresh } = useMockData();
+  const [preview, setPreview] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
-  const [decidingId, setDecidingId] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [previewError, setPreviewError] = useState(null);
-  const [previewingId, setPreviewingId] = useState(null);
 
   const loadPreview = async (id) => {
-    setPreviewingId(id);
     setPreviewError(null);
     try {
       const res = await apiFetch(`${API_ORIGIN}/api/admissions/${id}/activation-preview`);
       const text = await res.text();
-      if (!res.ok) {
-        throw new Error(text || `Preview failed (${res.status}).`);
-      }
+      if (!res.ok) throw new Error(text || `Preview failed (${res.status}).`);
       setPreview(JSON.parse(text));
     } catch (err) {
       setPreview(null);
       setPreviewError(err.message || "Could not load onboarding preview.");
-    } finally {
-      setPreviewingId(null);
-    }
-  };
-
-  const handleDecision = async (id, decision) => {
-    setDecidingId(id);
-    try {
-      await decideApplication(id, decision);
-    } catch (err) {
-      alert(err.message || "Couldn't complete that decision.");
-    } finally {
-      setDecidingId(null);
     }
   };
 
@@ -92,19 +60,10 @@ export default function AdmissionsQueue() {
     return <div className="admissions-empty">Loading applications…</div>;
   }
 
-  const pending = applications.filter((app) => app.status === STATUS.APPLIED);
-  const ordered = [...applications].sort((a, b) => {
-    if (a.status === b.status) return 0;
-    if (a.status === STATUS.APPLIED) return -1;
-    if (b.status === STATUS.APPLIED) return 1;
-    return 0;
-  });
-
   if (applications.length === 0) {
     return (
       <div className="admissions-empty">
-        No applications yet. Submit one from the public{" "}
-        <a href="/apply">Apply page</a> to see it appear here.
+        No applications yet.
       </div>
     );
   }
@@ -115,125 +74,85 @@ export default function AdmissionsQueue() {
 
   return (
     <>
-    <p className="admissions-review-note">
-      The Registrar reviews applications on this tab. The Principal does not receive them.
-      {pending.length > 0
-        ? ` ${pending.length} application${pending.length === 1 ? "" : "s"} waiting.`
-        : " No applications are waiting."}
-    </p>
-    <table className="admissions-table">
-      <thead>
-        <tr>
-          <th>Applicant</th>
-          <th>Programme</th>
-          <th>Contact</th>
-          <th>Documents</th>
-          <th>Status</th>
-          <th>Onboarding</th>
-          <th>Student ID</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ordered.map((app) => (
-          <tr key={app.id}>
-            <td>{app.fullName}</td>
-            <td>{app.programme}</td>
-            <td>
-              <div>{app.email}</div>
-              <div className="admissions-phone">{app.phone}</div>
-            </td>
-            <td>
-              <DocumentsCell documents={app.documents} />
-            </td>
-            <td>
-              <span className={`status-badge status-${app.status.toLowerCase()}`}>
-                {app.status}
-              </span>
-            </td>
-            <td>{app.onboardingStatus || "—"}</td>
-            <td>{app.studentId || "—"}</td>
-            <td>
-              {app.status === STATUS.APPLIED ? (
-                <div className="admissions-actions">
-                  <button
-                    className="btn-approve"
-                    disabled={decidingId === app.id}
-                    onClick={() => handleDecision(app.id, "approve")}
-                  >
-                    {decidingId === app.id ? "…" : "Approve"}
-                  </button>
-                  <button
-                    className="btn-reject"
-                    disabled={decidingId === app.id}
-                    onClick={() => handleDecision(app.id, "reject")}
-                  >
-                    {decidingId === app.id ? "…" : "Reject"}
-                  </button>
-                </div>
-              ) : app.status === STATUS.APPROVED ? (
-                <button
-                  className="btn-preview"
-                  disabled={previewingId === app.id}
-                  onClick={() => loadPreview(app.id)}
-                >
-                  {previewingId === app.id ? "…" : "Onboarding"}
-                </button>
-              ) : (
-                <span className="admissions-decided">Decided</span>
-              )}
-            </td>
+      <p className="admissions-review-note">
+        Open each application and review every submitted document before recording the Selection Committee decision.
+        The college does not ask the applicant for a replacement copy during this assessment.
+        WhatsApp delivery is not part of this version.
+      </p>
+      <table className="admissions-table">
+        <thead>
+          <tr>
+            <th>Applicant</th>
+            <th>Programme</th>
+            <th>Contact</th>
+            <th>Documents</th>
+            <th>Application status</th>
+            <th>Decision remark</th>
+            <th>Email</th>
+            <th>Student ID</th>
+            <th></th>
           </tr>
-        ))}
-      </tbody>
-    </table>
-    {previewError && <p className="admissions-preview-error">{previewError}</p>}
-    {preview && (
-      <div className="activation-preview">
-        <h3>Onboarding preview</h3>
-        <dl>
-          <dt>Student name</dt>
-          <dd>{preview.studentName}</dd>
-          <dt>Programme</dt>
-          <dd>{preview.programme}</dd>
-          <dt>Student number</dt>
-          <dd>{preview.studentNumber}</dd>
-          <dt>Allocated room</dt>
-          <dd>{preview.allocatedRoom || (preview.hostel && preview.room ? `${preview.hostel} / ${preview.room}` : "Not allocated")}</dd>
-          <dt>Onboarding status</dt>
-          <dd>{preview.onboardingStatus}</dd>
-          <dt>Activation token</dt>
-          <dd className="activation-token">{preview.activationToken || "—"}</dd>
-          <dt>Activation link</dt>
-          <dd>
-            {preview.activationLink ? (
-              <a href={localActivateHref || preview.activationLink}>
-                {preview.activationLink}
-              </a>
-            ) : (
-              "—"
-            )}
-          </dd>
-          <dt>College contact</dt>
-          <dd>
-            {(preview.contact?.institution || CONTACT.institution)} ·{" "}
-            {preview.contact?.phone || CONTACT.phone} ·{" "}
-            {preview.contact?.primaryEmail || CONTACT.primaryEmail}
-          </dd>
-          <dt>Application contact</dt>
-          <dd>
-            {preview.contact?.applicationContact || CONTACT.applicationContact}{" "}
-            ({preview.contact?.applicationEmail || CONTACT.applicationEmail})
-          </dd>
-        </dl>
-        {localActivateHref && (
-          <p>
-            Local demo:{" "}
-            <a href={localActivateHref}>Open activate page</a>
-          </p>
-        )}
-      </div>
-    )}
+        </thead>
+        <tbody>
+          {applications.map((app) => (
+            <tr key={app.id}>
+              <td>{app.fullName}</td>
+              <td>{app.programme}</td>
+              <td>
+                <div>{app.email}</div>
+                <div className="admissions-phone">{app.phone}</div>
+              </td>
+              <td>{reviewLine(app)}</td>
+              <td>
+                <div>{app.status}</div>
+                {app.selectionDecisionLabel && <div>{app.selectionDecisionLabel}</div>}
+                {app.consistencyWarnings?.map((warning) => (
+                  <div key={warning}>{warning}</div>
+                ))}
+                {app.status === STATUS.APPROVED && (
+                  <button type="button" className="btn-preview" onClick={() => loadPreview(app.id)}>
+                    Onboarding
+                  </button>
+                )}
+              </td>
+              <td>{shortRemark(app.decisionRemark)}</td>
+              <td>
+                {app.emailStatus || "Not sent"}
+                {app.emailStatus === "Failed" ? " · Retry available" : ""}
+              </td>
+              <td>{app.studentId || "—"}</td>
+              <td>
+                <Link className="btn-approve" to={`/registrar/admissions/${app.id}`}>
+                  Review Application
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {previewError && <p className="admissions-preview-error">{previewError}</p>}
+      {preview && (
+        <div className="activation-preview">
+          <h3>Existing onboarding</h3>
+          <p>This application is already approved. Opening onboarding does not create another student.</p>
+          <dl>
+            <dt>Student number</dt>
+            <dd>{preview.studentNumber}</dd>
+            <dt>Onboarding status</dt>
+            <dd>{preview.onboardingStatus}</dd>
+            <dt>Activation link</dt>
+            <dd>
+              {preview.activationLink ? (
+                <a href={localActivateHref || preview.activationLink}>{preview.activationLink}</a>
+              ) : "—"}
+            </dd>
+            <dt>College contact</dt>
+            <dd>
+              {(preview.contact?.institution || CONTACT.institution)} · {preview.contact?.phone || CONTACT.phone}
+            </dd>
+          </dl>
+        </div>
+      )}
     </>
   );
 }

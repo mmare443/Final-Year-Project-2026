@@ -18,5 +18,15 @@ public partial class AdmissionDocument
 
     public DateTime UploadedAt { get; set; }
 
+    public string? ReviewOutcome { get; set; }
+
+    public string? ReviewRemark { get; set; }
+
+    public int? ReviewedBy { get; set; }
+
+    public DateTime? ReviewedAt { get; set; }
+
+    public DateTime? OpenedAt { get; set; }
+
     public virtual Admission Admission { get; set; } = null!;
 }

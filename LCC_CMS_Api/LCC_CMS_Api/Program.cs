@@ -27,6 +27,8 @@ builder.Services.Configure<LCC_CMS_Api.Services.PortalSettings>(
     builder.Configuration.GetSection(LCC_CMS_Api.Services.PortalSettings.SectionName));
 builder.Services.Configure<LCC_CMS_Api.Services.ContactSettings>(
     builder.Configuration.GetSection(LCC_CMS_Api.Services.ContactSettings.SectionName));
+builder.Services.Configure<LCC_CMS_Api.Services.AdmissionEmailOptions>(
+    builder.Configuration.GetSection("AdmissionEmail"));
 builder.Services.AddSingleton<Microsoft.AspNetCore.Identity.IPasswordHasher<User>, Microsoft.AspNetCore.Identity.PasswordHasher<User>>();
 
 if (localJwtConfigured)
@@ -180,6 +182,7 @@ builder.Services.AddDbContext<LccCmsDbContext>(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LCC_CMS_Api.Services.ICurrentUser, LCC_CMS_Api.Services.CurrentUserService>();
 builder.Services.AddScoped<LCC_CMS_Api.Services.IFileStorage, LCC_CMS_Api.Services.LocalFileStorage>();
+builder.Services.AddScoped<LCC_CMS_Api.Services.IAdmissionEmailSender, LCC_CMS_Api.Services.AdmissionEmailSender>();
 builder.Services.AddScoped<LCC_CMS_Api.Services.CourseResultService>();
 builder.Services.AddHttpClient<LCC_CMS_Api.Services.OpenGraphMetadataClient>(client =>
 {

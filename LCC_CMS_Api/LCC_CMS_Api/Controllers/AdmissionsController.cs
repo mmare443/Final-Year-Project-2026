@@ -33,7 +33,7 @@ namespace LCC_CMS_Api.Controllers;
 [Route("api/[controller]")]
 public class AdmissionsController : ControllerBase
 {
-    private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };
+    private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB per file
 
     private readonly LccCmsDbContext _dbContext;
@@ -80,7 +80,22 @@ public class AdmissionsController : ControllerBase
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
-        return Ok(admissions.Select(ToApplication));
+        var ids = admissions.Select(a => a.AdmissionId).ToList();
+        var emailRows = ids.Count == 0
+            ? new List<AdmissionEmailLog>()
+            : await _dbContext.AdmissionEmailLogs
+                .AsNoTracking()
+                .Where(row => ids.Contains(row.AdmissionId))
+                .ToListAsync();
+        var emailByAdmission = emailRows
+            .GroupBy(row => row.AdmissionId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(row => row.AdmissionEmailLogId).First());
+
+        return Ok(admissions.Select(admission => ToApplication(
+            admission,
+            emailByAdmission.GetValueOrDefault(admission.AdmissionId))));
     }
 
     [Authorize(Policy = "RegistrarAdminOnly")]
@@ -202,7 +217,7 @@ public class AdmissionsController : ControllerBase
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (!AllowedExtensions.Contains(ext))
             {
-                return BadRequest($"{type}: file type '{ext}' not allowed. Use PDF, JPG, or PNG.");
+                return BadRequest($"{type}: file type '{ext}' not allowed. Use PDF, JPG, PNG, or WebP.");
             }
             if (file.Length > MaxFileSizeBytes)
             {
@@ -283,9 +298,23 @@ public class AdmissionsController : ControllerBase
 
             if (!string.Equals(admission.Status, "Applied", StringComparison.OrdinalIgnoreCase))
             {
-                return Conflict("This application has already been decided.");
+                return Conflict("This application has already been decided. Existing onboarding is unchanged and no second student was created.");
             }
 
+            if (request.Decision == "approve")
+            {
+                if (admission.StudentId is not null)
+                {
+                    return Conflict("A student record is already linked to this application. No second student was created.");
+                }
+
+                if (!AdmissionReviewPolicy.CanProceedToApproval(admission.SelectionDecision))
+                {
+                    return Conflict("Record Application Successful, or Application Successful subject to original document verification, before approval and onboarding.");
+                }
+            }
+
+            var previousStatus = admission.Status;
             admission.DecisionDate = DateOnly.FromDateTime(DateTime.UtcNow);
             admission.ReviewedBy = staff.StaffId;
 
@@ -371,6 +400,16 @@ public class AdmissionsController : ControllerBase
             admission.StudentId = user.UserId;
             admission.Student = student;
             admission.Status = "Approved";
+            _dbContext.AuditLogs.Add(new AuditLog
+            {
+                UserId = staff.StaffId,
+                Action = "Update",
+                TableName = "admissions",
+                RecordId = admission.AdmissionId.ToString(),
+                OldValue = $"status={previousStatus}",
+                NewValue = $"status=Approved;selection={admission.SelectionDecision};action=ApproveAndBeginOnboarding",
+                Timestamp = DateTime.UtcNow,
+            });
 
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -587,8 +626,9 @@ public class AdmissionsController : ControllerBase
         return false;
     }
 
-    private AdmissionApplication ToApplication(Admission admission)
+    private AdmissionApplication ToApplication(Admission admission, AdmissionEmailLog? email = null)
     {
+        var documents = admission.AdmissionDocuments.ToList();
         return new AdmissionApplication
         {
             Id = admission.AdmissionId,
@@ -600,12 +640,34 @@ public class AdmissionsController : ControllerBase
             OnboardingStatus = OnboardingStatus.From(admission),
             StudentId = admission.Student?.StudentNumber,
             SubmittedAt = admission.CreatedAt,
-            Documents = admission.AdmissionDocuments
+            SelectionDecision = admission.SelectionDecision,
+            SelectionDecisionLabel = string.IsNullOrWhiteSpace(admission.SelectionDecision)
+                ? null
+                : AdmissionReviewPolicy.DecisionLabel(admission.SelectionDecision),
+            DecisionRemark = admission.DecisionRemark,
+            DocumentCount = documents.Count,
+            ReviewedCount = documents.Count(d => d.ReviewOutcome != null),
+            AcceptableCount = documents.Count(d => d.ReviewOutcome == AdmissionReviewPolicy.Acceptable),
+            ProvisionalCount = documents.Count(d => d.ReviewOutcome == AdmissionReviewPolicy.Unclear),
+            BelowStandardCount = documents.Count(d => d.ReviewOutcome == AdmissionReviewPolicy.DoesNotMeet),
+            MissingCount = documents.Count(d => d.ReviewOutcome == AdmissionReviewPolicy.Missing),
+            EmailStatus = email?.DeliveryStatus switch
+            {
+                "Sent" => "Sent",
+                "Failed" => "Failed",
+                _ => "Not sent",
+            },
+            ConsistencyWarnings = AdmissionReviewPolicy.ConsistencyWarnings(
+                admission.Status,
+                admission.SelectionDecision,
+                admission.StudentId is not null,
+                admission.DecisionRemark).ToList(),
+            Documents = documents
                 .OrderBy(d => d.AdmissionDocumentId)
                 .Select(d => new AdmissionDocument
                 {
+                    DocumentId = d.AdmissionDocumentId,
                     Type = d.DocumentType,
-                    Path = d.StorageKey,
                     FileName = d.OriginalFileName,
                 })
                 .ToList(),
@@ -624,14 +686,25 @@ public class AdmissionApplication
     public string OnboardingStatus { get; set; } = "";
     public string? StudentId { get; set; }
     public DateTime SubmittedAt { get; set; }
+    public string? SelectionDecision { get; set; }
+    public string? SelectionDecisionLabel { get; set; }
+    public string? DecisionRemark { get; set; }
+    public int DocumentCount { get; set; }
+    public int ReviewedCount { get; set; }
+    public int AcceptableCount { get; set; }
+    public int ProvisionalCount { get; set; }
+    public int BelowStandardCount { get; set; }
+    public int MissingCount { get; set; }
+    public string EmailStatus { get; set; } = "Not sent";
+    public List<string> ConsistencyWarnings { get; set; } = new();
     public List<AdmissionDocument> Documents { get; set; } = new();
 }
 
 public class AdmissionDocument
 {
-    public string Type { get; set; } = "";     // e.g. "Grade 12 Certificate"
-    public string Path { get; set; } = "";     // e.g. /uploads/admissions/<guid>.pdf
-    public string FileName { get; set; } = ""; // original filename, display only
+    public int DocumentId { get; set; }
+    public string Type { get; set; } = "";
+    public string FileName { get; set; } = "";
 }
 
 public class AdmissionApplicationRequest

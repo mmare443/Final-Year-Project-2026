@@ -13,6 +13,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
 import Admissions from "./pages/Admissions";
+import AdmissionReview from "./pages/AdmissionReview";
 import Activate from "./pages/Activate";
 import Apply from "./pages/Apply";
 import Unauthorized from "./pages/Unauthorized";
@@ -231,6 +232,14 @@ function App() {
                     element={
                       <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
                         <Admissions />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/registrar/admissions/:admissionId"
+                    element={
+                      <ProtectedRoute allowedRole={ROLES.REGISTRAR_ADMIN}>
+                        <AdmissionReview />
                       </ProtectedRoute>
                     }
                   />

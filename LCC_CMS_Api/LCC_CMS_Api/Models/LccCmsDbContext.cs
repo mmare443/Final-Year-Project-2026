@@ -23,6 +23,8 @@ public partial class LccCmsDbContext : DbContext
 
     public virtual DbSet<Admission> Admissions { get; set; }
 
+    public virtual DbSet<AdmissionEmailLog> AdmissionEmailLogs { get; set; }
+
     public virtual DbSet<Assessment> Assessments { get; set; }
 
     public virtual DbSet<Assignment> Assignments { get; set; }
@@ -177,6 +179,17 @@ public partial class LccCmsDbContext : DbContext
                 .HasDefaultValue("Applied")
                 .HasColumnName("status");
             entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.SelectionDecision)
+                .HasMaxLength(80)
+                .HasColumnName("selection_decision");
+            entity.Property(e => e.DecisionRemark)
+                .HasMaxLength(2000)
+                .HasColumnName("decision_remark");
+            entity.Property(e => e.DecisionOverrideReason)
+                .HasMaxLength(1000)
+                .HasColumnName("decision_override_reason");
+            entity.Property(e => e.DecisionRecordedBy).HasColumnName("decision_recorded_by");
+            entity.Property(e => e.DecisionRecordedAt).HasColumnName("decision_recorded_at");
 
             entity.HasOne(d => d.Programme).WithMany(p => p.Admissions)
                 .HasForeignKey(d => d.ProgrammeId)
@@ -221,12 +234,38 @@ public partial class LccCmsDbContext : DbContext
             entity.Property(e => e.UploadedAt)
                 .HasDefaultValueSql("(sysutcdatetime())")
                 .HasColumnName("uploaded_at");
+            entity.Property(e => e.ReviewOutcome)
+                .HasMaxLength(40)
+                .HasColumnName("review_outcome");
+            entity.Property(e => e.ReviewRemark)
+                .HasMaxLength(1000)
+                .HasColumnName("review_remark");
+            entity.Property(e => e.ReviewedBy).HasColumnName("reviewed_by");
+            entity.Property(e => e.ReviewedAt).HasColumnName("reviewed_at");
+            entity.Property(e => e.OpenedAt).HasColumnName("opened_at");
 
             entity.HasOne(d => d.Admission)
                 .WithMany(p => p.AdmissionDocuments)
                 .HasForeignKey(d => d.AdmissionId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__admission_documents__admission");
+        });
+
+        modelBuilder.Entity<AdmissionEmailLog>(entity =>
+        {
+            entity.HasKey(e => e.AdmissionEmailLogId);
+            entity.ToTable("admission_email_log");
+            entity.HasIndex(e => e.AdmissionId, "IX_admission_email_log_admission");
+            entity.Property(e => e.AdmissionEmailLogId).HasColumnName("admission_email_log_id");
+            entity.Property(e => e.AdmissionId).HasColumnName("admission_id");
+            entity.Property(e => e.Decision).HasMaxLength(80).HasColumnName("decision");
+            entity.Property(e => e.RecipientEmail).HasMaxLength(255).HasColumnName("recipient_email");
+            entity.Property(e => e.Subject).HasMaxLength(300).HasColumnName("subject");
+            entity.Property(e => e.DeliveryStatus).HasMaxLength(20).HasColumnName("delivery_status");
+            entity.Property(e => e.AttemptedAt).HasColumnName("attempted_at");
+            entity.Property(e => e.SentAt).HasColumnName("sent_at");
+            entity.Property(e => e.FailureMessage).HasMaxLength(500).HasColumnName("failure_message");
+            entity.Property(e => e.InitiatedBy).HasColumnName("initiated_by");
         });
 
         modelBuilder.Entity<Assessment>(entity =>
